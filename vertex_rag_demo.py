@@ -25,6 +25,7 @@ from vertexai.generative_models import GenerationResponse
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 
 
+# Create a RAG corpus, import files, and generate a response
 def quickstart(
         display_name: str,
         paths: List[str],
@@ -33,12 +34,27 @@ def quickstart(
     from vertexai.generative_models import GenerativeModel, Tool
     import vertexai
 
-    # Create a RAG Corpus, Import Files, and Generate a response
-
     PROJECT_ID = "ftsc-rag-demo"
     display_name = "test_corpus"
     paths = [
-        "https://drive.google.com/drive/folders/1WO1rXTSVre9fsiY1souLMBnqybOcTOJH"]  # Supports Google Cloud Storage and Google Drive Links
+        "https://drive.google.com/drive/folders/1WO1rXTSVre9fsiY1souLMBnqybOcTOJH"
+    ]  # Supports Google Cloud Storage and Google Drive Links
+
+    system_prompt = """You are a research assistant analyzing technical conference papers. Your task is to identify papers relevant to the specific topic mentioned in the query. When determining relevance:
+        1. Focus on direct technical connections to the query topic
+        2. Consider both explicit mentions and implicit relevance through related methodologies
+        3. Rank papers by how central the query topic is to the paper's main contributions
+        4. Be precise about why each paper is or isn't relevant
+        5. Cite specific sections when possible
+        6. If uncertain about relevance, explain why
+        7. Always mention sources by title, not just their source number.
+        8. Do not recommend specific courses of action to the user. Only suggest which sources they should read and why.
+        Based on these criteria, analyze the provided papers to answer the query: """
+
+    # Parameters
+    top_k = 7  # Number of relevant sources to retrieve
+    vector_distance_threshold = 0.5
+    llm_model_name = "gemini-2.0-flash-001"
 
     # Initialize Vertex AI API once per session
     vertexai.init(project=PROJECT_ID, location="us-central1")
@@ -65,8 +81,8 @@ def quickstart(
         # Optional
         transformation_config=rag.TransformationConfig(
             chunking_config=rag.ChunkingConfig(
-                chunk_size=512,
-                chunk_overlap=100,
+                chunk_size=1024,
+                chunk_overlap=150,
             ),
         ),
         max_embedding_requests_per_min=1000,  # Optional
@@ -74,46 +90,29 @@ def quickstart(
 
     # Direct context retrieval
     rag_retrieval_config = rag.RagRetrievalConfig(
-        top_k=3,  # Optional
-        filter=rag.Filter(vector_distance_threshold=0.5),  # Optional
+        top_k=top_k,
+        filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),
     )
-    response = rag.retrieval_query(
-        rag_resources=[
-            rag.RagResource(
-                rag_corpus=rag_corpus.name,
-                # Optional: supply IDs from `rag.list_files()`.
-                # rag_file_ids=["rag-file-1", "rag-file-2", ...],
-            )
-        ],
-        text="Which papers in the sources are relevant for flight test?",
-        rag_retrieval_config=rag_retrieval_config,
-    )
-    print(response)
 
-    # Enhance generation
     # Create a RAG retrieval tool
     rag_retrieval_tool = Tool.from_retrieval(
         retrieval=rag.Retrieval(
             source=rag.VertexRagStore(
-                rag_resources=[
-                    rag.RagResource(
-                        rag_corpus=rag_corpus.name,  # Currently only 1 corpus is allowed.
-                        # Optional: supply IDs from `rag.list_files()`.
-                        # rag_file_ids=["rag-file-1", "rag-file-2", ...],
-                    )
-                ],
+                rag_resources=[rag.RagResource(rag_corpus=rag_corpus.name)],
                 rag_retrieval_config=rag_retrieval_config,
             ),
         )
     )
 
     # Create a Gemini model instance
-    rag_model = GenerativeModel(model_name="gemini-2.0-flash-001", tools=[rag_retrieval_tool])
+    rag_model = GenerativeModel(model_name=llm_model_name, tools=[rag_retrieval_tool])
 
     # Generate response
     print("\nRAG Query Console. Type 'exit' to quit.")
     while True:
-        query = input("\nEnter your query: ")
+        user_input = input("\nEnter your query: ")
+        query = system_prompt + user_input
+
         if query.lower() == 'exit':
             break
 
@@ -127,14 +126,11 @@ def quickstart(
             print("\nRetrieved chunks:")
             print(retrieval_response)
 
-        # Generate response
         print("\nGenerating response...")
         response = rag_model.generate_content(query)
         print("\nResponse:")
         print(response.text)
 
-    # response = rag_model.generate_content("I want to plan a flight test of an autonomous vehicle. Which of the sources are relevant for me?")
-    # print(response.text)
     return rag_corpus, response
 
 
