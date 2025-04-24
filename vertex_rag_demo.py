@@ -1,3 +1,7 @@
+# TODO:
+  # Connect to FTSC google drive
+  # Set up evaluation pipeline
+
 import os
 from typing import List, Tuple
 from vertexai import rag
