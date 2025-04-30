@@ -1,7 +1,3 @@
-# TODO:
-  # Connect to FTSC google drive
-  # Set up evaluation pipeline
-
 import os
 from typing import List, Tuple
 from vertexai import rag
@@ -19,7 +15,10 @@ def quickstart(
 
     PROJECT_ID = "ftsc-rag-demo"
     display_name = "test_corpus"
-    paths = ["https://drive.google.com/drive/folders/1WO1rXTSVre9fsiY1souLMBnqybOcTOJH"]  # Supports Google Cloud Storage and Google Drive Links
+    # Set path (Supports Google Cloud Storage and Google Drive Links)
+    #paths = ["https://drive.google.com/drive/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"] # FTSC database. Permission denied as of 4/30/25.
+    #paths = ["https://drive.google.com/drive/folders/1WO1rXTSVre9fsiY1souLMBnqybOcTOJH"]  # Ryan's test google drive folder
+    paths = ["https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"] # Copied FTSC database folder
     
     system_prompt = """You are a research assistant analyzing technical conference papers. Your task is to identify papers relevant to the specific topic mentioned in the query. When determining relevance:
         1. Focus on direct technical connections to the query topic
@@ -116,7 +115,8 @@ def quickstart(
 
 if __name__ == "__main__":
     gdrive_path = "https://drive.google.com/drive/folders/1WO1rXTSVre9fsiY1souLMBnqybOcTOJH"
+    gcloud_path = "gs://your-bucket-name/file.txt"
     quickstart(
         display_name="test_corpus",
-        paths=[gdrive_path],
+        paths=[gdrive_path, gcloud_path],
     )
