@@ -171,7 +171,7 @@ class RAGPipeline:
 
 def main():
     st.set_page_config(
-        page_title="Research Paper RAG Demo",
+        page_title="Flight Test Safety Council RAG Pipeline",
         page_icon="🔍",
         layout="wide"
     )
@@ -254,7 +254,7 @@ def main():
                         st.success("✅ Corpus created and files imported")
                         
                         # Setup model
-                        if st.session_state.rag_pipeline.setup_model(top_k, vector_threshold, selected_model, temperature):
+                        if st.session_state.rag_pipeline.setup_model(top_k, vector_distance_threshold=vector_threshold, llm_model_name=selected_model, temperature=temperature):
                             st.success("✅ RAG model ready!")
                             st.session_state.corpus_created = True
                             st.rerun()
@@ -295,35 +295,44 @@ def main():
         # Show demo information
         st.markdown("## About This Demo")
         st.markdown("""
-        This demo showcases a Retrieval-Augmented Generation (RAG) system for research papers:
+        This tool provides intelligent search capabilities for the Flight Test Safety Council paper database:
         
-        - **🔍 Intelligent Search**: Find relevant papers using semantic search
-        - **📚 Context-Aware Responses**: Get detailed answers based on paper content
-        - **🎯 Relevance Ranking**: Papers ranked by relevance to your query
-        - **📖 Source Attribution**: Clear citations and references
+        - **🔍 Technical Search**: Find relevant papers using semantic search across flight test documentation
+        - **📚 Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
+        - **🎯 Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
+        - **📖 Source Attribution**: Clear citations from FTSC papers and technical reports
         
         **To use:**
-        1. Configure your parameters in the sidebar
-        2. Add your Google Drive folder URLs containing research papers
-        3. Click "Initialize RAG Pipeline" and wait for setup
-        4. Start asking questions about the research papers!
+        1. Configure your search parameters in the sidebar
+        2. Initialize the RAG pipeline to connect to the FTSC database
+        3. Ask questions about flight test procedures, safety considerations, or lessons learned
+        4. Get comprehensive answers with source citations!
+        
+        **Example queries:**
+        - "What are some prior papers about high altitude flight testing?"
+        - "What do I need to know about autonomous vehicle flight testing?"
+        - "What safety considerations apply to envelope expansion testing?"
+        - "Are there lessons learned from flutter testing incidents?"
         """)
         
     else:
         # System prompt
-        system_prompt = """You are a research assistant analyzing technical conference papers. Your task is to identify papers relevant to the specific topic mentioned in the query. When determining relevance:
-        1. Focus on direct technical connections to the query topic
-        2. Consider both explicit mentions and implicit relevance through related methodologies
-        3. Rank papers by how central the query topic is to the paper's main contributions
-        4. Be precise about why each paper is or isn't relevant
-        5. Cite specific sections when possible
-        6. If uncertain about relevance, explain why
-        7. Always mention sources by title, not just their source number.
-        8. Do not recommend specific courses of action to the user. Only suggest which sources they should read and why.
-        Based on these criteria, analyze the provided papers to answer the query: """
+        system_prompt = """You are a flight test engineering assistant analyzing the Flight Test Safety Council (FTSC) paper database. Your task is to identify papers and technical reports relevant to the specific flight test topic mentioned in the query. When determining relevance:
+
+        1. Focus on direct technical connections to flight test techniques, procedures, safety considerations, and lessons learned
+        2. Consider both explicit mentions and implicit relevance through related flight test methodologies, aircraft types, or test conditions
+        3. Rank papers by how applicable they are to the queried flight test scenario or safety concern
+        4. Be precise about why each paper is or isn't relevant to the specific flight test challenge
+        5. Cite specific sections, test results, or safety recommendations when possible
+        6. If uncertain about relevance, explain the potential connection to flight test safety or procedures
+        7. Always mention sources by title and include relevant technical details (aircraft type, test conditions, etc.)
+        8. Highlight any safety considerations, lessons learned, or cautionary notes from the papers
+        9. Focus on providing known practices in the sources and pointing the user to where they should look next, but do not give direct actionable recommendations.
+
+        Based on these criteria, analyze the FTSC papers to provide comprehensive flight test engineering guidance for the query: """
         
         # Chat interface
-        st.subheader("💬 Research Assistant")
+        st.subheader("💬 Search Assistant")
         
         # Display chat history
         for i, (query, response) in enumerate(st.session_state.chat_history):
@@ -334,8 +343,8 @@ def main():
         
         # Query input
         user_query = st.text_input(
-            "Ask a question about the research papers:",
-            placeholder="e.g., What papers discuss transformer architectures for natural language processing?"
+            "Please enter your query:",
+            placeholder="e.g., What do I need to know about high-altitude flight test?"
         )
         
         if st.button("🔍 Search") and user_query:
