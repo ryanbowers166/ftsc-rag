@@ -254,7 +254,7 @@ def main():
                         st.success("✅ Corpus created and files imported")
                         
                         # Setup model
-                        if st.session_state.rag_pipeline.setup_model(top_k, vector_distance_threshold=vector_threshold, llm_model_name=selected_model, temperature=temperature):
+                        if st.session_state.rag_pipeline.setup_model(top_k=top_k, vector_distance_threshold=vector_threshold, llm_model_name=selected_model, temperature=temperature):
                             st.success("✅ RAG model ready!")
                             st.session_state.corpus_created = True
                             st.rerun()
