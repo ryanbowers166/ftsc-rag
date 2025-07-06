@@ -338,8 +338,7 @@ def main():
         This tool provides intelligent search capabilities for the Flight Test Safety Council paper database:
         
         - **Technical Search**: Find relevant papers using semantic search across flight test documentation
-        - **Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
-        - **Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
+        - **Lessons Learned**: Get detailed insights based on prior flight test experiences and safety considerations
         - **Source Attribution**: Clear citations from FTSC papers and technical reports
         
         **To use:**
@@ -349,24 +348,22 @@ def main():
         4. Get comprehensive answers with source citations
         
         **Example queries:**
-        - "What are some prior papers about high altitude flight testing?"
+        - "Which sources in the database talk about high-altitude flight testing?"
         - "What do I need to know about autonomous vehicle flight testing?"
         - "What safety considerations apply to envelope expansion testing?"
-        - "Are there lessons learned from flutter testing incidents?"
+        - "What are some lessons learned from flutter testing incidents?"
         
         ## How does this tool work?
         
-        This tool uses a technique called **Retrieval-Augmented Generation**, which uses a large language model .(LLM) connected to a database of information (a "corpus").
+        This tool uses a technique called **Retrieval Augmented Generation**, which uses a large language model (LLM) connected to a database of information (a "corpus").
 
-        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or use-case without requiring any retraining. 
-        
-        The RAG process happens in several steps when you submit a query:
+        Retrieval Augmented Generation (RAG) allows us to fine-tune an LLM to a specific database or use-case without requiring any retraining. The RAG process happens in several steps when you submit a query:
 
-        1. **Document Retrieval**: Your question is converted into a mathematical representation (called an "embedding") that captures its semantic meaning. The system then searches through embeddings of all documents in the FTSC database to find the most relevant papers and sections.
+        1. **Document Retrieval**: Your question is converted into a vector representation (called an "embedding") that encodes its semantic meaning. The system then searches through embeddings of all documents in the FTSC database to find the most relevant papers and sections.
 
-        2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your original question and the system prompt to create a comprehensive context for the AI model.
+        2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your query to create the raw material for the LLM to base its response on.
 
-        3. **Response Generation**: The large language model (in our case, Gemini) uses this combined context to generate a response that's both informed by the specific FTSC documentation and tailored to your flight test question.
+        3. **Response Generation**: The LLM (in our case, Gemini) uses this retrieved informationto generate a response to your query based on the sources in the database.
         
         Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a **system prompt** which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
         """)
