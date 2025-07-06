@@ -312,51 +312,76 @@ def main():
             st.rerun()
     
     # Main content area
+    
+    system_prompt = """You are a flight test expert analyzing technical papers and documentation. When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
+
+    1. **Unique characteristics** and challenges specific to that test type
+    2. **Specialized equipment, procedures, or methodologies** required
+    3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
+    4. **Technical differences** from standard flight test approaches
+    5. **Specialized certification or regulatory requirements** if applicable
+    
+    Maintain the conversation to the best of your ability. For example, respond to the user's follow-on questions, and end your responses with your own follow-on questions to continue the conversation.
+    
+    ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
+
+    Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
+
+    Query: """
+    
     if not st.session_state.corpus_created:
-        st.info("👈 Please initialize the RAG pipeline using the sidebar to get started.")
+        st.info("Please initialize the RAG pipeline using the sidebar to get started.")
         
         # Show demo information
         st.markdown("## About This Demo")
-        st.markdown("""
+        st.markdown(f"""
         This tool provides intelligent search capabilities for the Flight Test Safety Council paper database:
         
-        - **🔍 Technical Search**: Find relevant papers using semantic search across flight test documentation
-        - **📚 Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
-        - **🎯 Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
-        - **📖 Source Attribution**: Clear citations from FTSC papers and technical reports
+        - **Technical Search**: Find relevant papers using semantic search across flight test documentation
+        - **Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
+        - **Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
+        - **Source Attribution**: Clear citations from FTSC papers and technical reports
         
         **To use:**
-        1. Configure your search parameters in the sidebar
-        2. Initialize the RAG pipeline to connect to the FTSC database
+        1. Configure your search parameters in the sidebar (or use the default values)
+        2. Click "Initialize RAG pipeline" to connect to the FTSC database
         3. Ask questions about flight test procedures, safety considerations, or lessons learned
-        4. Get comprehensive answers with source citations!
+        4. Get comprehensive answers with source citations
         
         **Example queries:**
         - "What are some prior papers about high altitude flight testing?"
         - "What do I need to know about autonomous vehicle flight testing?"
         - "What safety considerations apply to envelope expansion testing?"
         - "Are there lessons learned from flutter testing incidents?"
+        
+        ## How does this tool work?
+        
+        This tool uses a technique called *Retrieval-Augmented Generation*, which uses a large language model (LLM) conected to a database of information (a "corpus") 
+
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a *system prompt* which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
+        ```
+        {system_prompt}
+        ```
+        
+        **How RAG Works:**
+
+        The RAG process happens in several steps when you submit a query:
+
+        1. **Document Retrieval**: Your question is converted into a mathematical representation (called an "embedding") that captures its semantic meaning. The system then searches through embeddings of all documents in the FTSC database to find the most relevant papers and sections.
+
+        2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your original question and the system prompt to create a comprehensive context for the AI model.
+
+        3. **Response Generation**: The large language model (Gemini) uses this combined context to generate a response that's both informed by the specific FTSC documentation and tailored to your flight test question.
+
+        4. **Source Attribution**: The model is instructed to cite specific papers and explain their relevance, ensuring transparency about where information comes from.
+        
+        This allows us to tune an LLM for a specific use-case or database, without requring any retraining. 
+
+        
         """)
         
     else:
-        # System prompt
-        system_prompt = """You are a flight test expert analyzing technical papers and documentation. When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
-
-        1. **Unique characteristics** and challenges specific to that test type
-        2. **Specialized equipment, procedures, or methodologies** required
-        3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
-        4. **Technical differences** from standard flight test approaches
-        5. **Specialized certification or regulatory requirements** if applicable
-        
-        ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
-
-        Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
-
-        Query: """
-        
         # Chat interface
-        # Chat interface
-        st.subheader("💬 Search Assistant")
 
         # Display chat history
         chat_container = st.container()
