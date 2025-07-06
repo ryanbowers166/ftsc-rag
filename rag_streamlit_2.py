@@ -49,18 +49,18 @@ class RAGPipeline:
         self.initialized = False
         
     def initialize_vertex_ai(self):
-    """Initialize Vertex AI with project configuration"""
-    try:
-        # Check for authentication
-        if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
-            st.error("Google Cloud credentials not found. Please authenticate first.")
+        """Initialize Vertex AI with project configuration"""
+        try:
+            # Check for authentication
+            if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+                st.error("Google Cloud credentials not found. Please authenticate first.")
+                return False
+                
+            vertexai.init(project=PROJECT_ID, location=LOCATION)
+            return True
+        except Exception as e:
+            st.error(f"Failed to initialize Vertex AI: {str(e)}")
             return False
-            
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
-        return True
-    except Exception as e:
-        st.error(f"Failed to initialize Vertex AI: {str(e)}")
-        return False
     
     def create_corpus(self, display_name: str, paths: List[str]) -> bool:
         """Create RAG corpus and import files"""
