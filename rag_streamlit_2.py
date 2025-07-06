@@ -356,12 +356,7 @@ def main():
         
         ## How does this tool work?
         
-        This tool uses a technique called *Retrieval-Augmented Generation*, which uses a large language model (LLM) conected to a database of information (a "corpus") 
-
-        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a *system prompt* which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:""")
-        st.code(system_prompt, language="text")
-        
-        st.markdown("""**How Retrieval-Augmented Generation Works:**
+        This tool uses a technique called **Retrieval-Augmented Generation**, which uses a large language model .(LLM) connected to a database of information (a "corpus").
 
         Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or use-case without requiring any retraining. 
         
@@ -372,8 +367,12 @@ def main():
         2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your original question and the system prompt to create a comprehensive context for the AI model.
 
         3. **Response Generation**: The large language model (in our case, Gemini) uses this combined context to generate a response that's both informed by the specific FTSC documentation and tailored to your flight test question.
-
+        
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a **system prompt** which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
         """)
+        
+        st.code(system_prompt, language="text")
+        
         
     else:
         # Chat interface
