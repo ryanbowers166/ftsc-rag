@@ -358,26 +358,21 @@ def main():
         
         This tool uses a technique called *Retrieval-Augmented Generation*, which uses a large language model (LLM) conected to a database of information (a "corpus") 
 
-        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a *system prompt* which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
-        ```
-        {system_prompt}
-        ```
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a *system prompt* which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:""")
+        st.code(system_prompt, language="text")
         
-        **How RAG Works:**
+        st.markdown("""**How Retrieval-Augmented Generation Works:**
 
+        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or use-case without requiring any retraining. 
+        
         The RAG process happens in several steps when you submit a query:
 
         1. **Document Retrieval**: Your question is converted into a mathematical representation (called an "embedding") that captures its semantic meaning. The system then searches through embeddings of all documents in the FTSC database to find the most relevant papers and sections.
 
         2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your original question and the system prompt to create a comprehensive context for the AI model.
 
-        3. **Response Generation**: The large language model (Gemini) uses this combined context to generate a response that's both informed by the specific FTSC documentation and tailored to your flight test question.
+        3. **Response Generation**: The large language model (in our case, Gemini) uses this combined context to generate a response that's both informed by the specific FTSC documentation and tailored to your flight test question.
 
-        4. **Source Attribution**: The model is instructed to cite specific papers and explain their relevance, ensuring transparency about where information comes from.
-        
-        This allows us to tune an LLM for a specific use-case or database, without requring any retraining. 
-
-        
         """)
         
     else:
