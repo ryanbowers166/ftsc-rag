@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from typing import List, Tuple, Optional
 from vertexai import rag
-from vertexai.generative_models import GenerativeModel, Tool, GenerationResponse
+from vertexai.generative_models import GenerativeModel, Tool, GenerationResponse, GenerationConfig
 import vertexai
 import time
 
@@ -101,7 +101,7 @@ class RAGPipeline:
             return False
     
     def setup_model(self, top_k: int = 7, vector_distance_threshold: float = 0.5, 
-                   llm_model_name: str = "gemini-2.0-flash-001"):
+               llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 1.0):
         """Setup the RAG model with retrieval tool"""
         try:
             # Direct context retrieval
@@ -121,9 +121,11 @@ class RAGPipeline:
             )
             
             # Create a model instance
+            generation_config = GenerationConfig(temperature=temperature)
             self.rag_model = GenerativeModel(
                 model_name=llm_model_name, 
-                tools=[rag_retrieval_tool]
+                tools=[rag_retrieval_tool],
+                generation_config=generation_config
             )
             
             self.initialized = True
@@ -195,54 +197,88 @@ def main():
         st.header("⚙️ Configuration")
         
         # RAG Parameters
+        # RAG Parameters
         st.subheader("RAG Parameters")
-        top_k = st.slider("Number of sources to retrieve", 3, 15, 7)
-        vector_threshold = st.slider("Vector distance threshold", 0.1, 1.0, 0.5, 0.1)
-        
-        # Model selection
-        model_options = [
-            "gemini-2.0-flash-001",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash"
-        ]
-        selected_model = st.selectbox("LLM Model", model_options)
-        
-        # Data source configuration
-        st.subheader("Data Sources")
-        default_path = "https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"
-        data_paths = st.text_area(
-            "Google Drive folder URLs (one per line):",
-            value=default_path,
-            help="Enter Google Drive folder URLs containing your research papers"
+        top_k = st.slider(
+            "Number of sources to retrieve", 
+            3, 15, 7,
+            help="Controls how many relevant documents the model looks at when compiling an answer to your query."
+        )
+        vector_threshold = st.slider(
+            "Vector distance threshold", 
+            0.1, 1.0, 0.5, 0.1,
+            help="Sets the minimum similarity required for a document to be considered relevant (lower = more strict)."
+        )
+        temperature = st.slider(
+            "Model temperature", 
+            0.0, 2.0, 1.0, 0.1,
+            help="Controls creativity of responses (0.0 = deterministic, 1.0 = default, 2.0 = very creative)."
         )
         
+        # Model selection
+        # model_options = [
+            # "gemini-2.0-flash-001",
+            # "gemini-1.5-pro",
+            # "gemini-1.5-flash"
+        # ]
+        selected_model = "gemini-2.0-flash-001" #st.selectbox("LLM Model", model_options)
+        
+        # Data source configuration
+        #st.subheader("Data Sources")
+        # default_path = "https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"
+        # data_paths = st.text_area(
+            # "Google Drive folder URLs (one per line):",
+            # value=default_path,
+            # help="Enter Google Drive folder URLs containing your research papers"
+        # )
+        
         # Parse paths
-        paths = [path.strip() for path in data_paths.split('\n') if path.strip()]
+        #paths = [path.strip() for path in data_paths.split('\n') if path.strip()]
         
         # Corpus management
-        st.subheader("Corpus Management")
-        corpus_name = st.text_input("Corpus Name", "demo_corpus")
+        #st.subheader("Corpus Management")
+        #corpus_name = st.text_input("Corpus Name", "demo_corpus")
         
         if st.button("🚀 Initialize RAG Pipeline", type="primary"):
-            if not paths:
-                st.error("Please provide at least one data source path")
-            else:
-                with st.spinner("Initializing RAG pipeline..."):
-                    # Initialize Vertex AI
-                    if st.session_state.rag_pipeline.initialize_vertex_ai():
-                        st.success("✅ Vertex AI initialized")
+            # Hardcoded values
+            corpus_name = "FTSC Database"
+            paths = ["https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"]
+            
+            with st.spinner("Initializing RAG pipeline..."):
+                # Initialize Vertex AI
+                if st.session_state.rag_pipeline.initialize_vertex_ai():
+                    st.success("✅ Vertex AI initialized")
+                    
+                    # Create corpus
+                    if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
+                        st.success("✅ Corpus created and files imported")
                         
-                        # Create corpus
-                        if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
-                            st.success("✅ Corpus created and files imported")
+                        # Setup model
+                        if st.session_state.rag_pipeline.setup_model(top_k, vector_threshold, selected_model, temperature):
+                            st.success("✅ RAG model ready!")
+                            st.session_state.corpus_created = True
+                            st.rerun()
                             
-                            # Setup model
-                            if st.session_state.rag_pipeline.setup_model(
-                                top_k, vector_threshold, selected_model
-                            ):
-                                st.success("✅ RAG model ready!")
-                                st.session_state.corpus_created = True
-                                st.rerun()
+        # if st.button("🚀 Initialize RAG Pipeline", type="primary"):
+            # if not paths:
+                # st.error("Please provide at least one data source path")
+            # else:
+                # with st.spinner("Initializing RAG pipeline..."):
+                    # # Initialize Vertex AI
+                    # if st.session_state.rag_pipeline.initialize_vertex_ai():
+                        # st.success("✅ Vertex AI initialized")
+                        
+                        # # Create corpus
+                        # if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
+                            # st.success("✅ Corpus created and files imported")
+                            
+                            # # Setup model
+                            # if st.session_state.rag_pipeline.setup_model(
+                                # top_k, vector_threshold, selected_model
+                            # ):
+                                # st.success("✅ RAG model ready!")
+                                # st.session_state.corpus_created = True
+                                # st.rerun()
         
         # Show advanced options
         show_chunks = st.checkbox("Show retrieved chunks", False)
