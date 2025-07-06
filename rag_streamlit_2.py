@@ -2,7 +2,7 @@ import streamlit as st
 import os
 from typing import List, Tuple, Optional
 from vertexai import rag
-from vertexai.generative_models import GenerativeModel, Tool, GenerationResponse
+from vertexai.generative_models import GenerativeModel, Tool, GenerationResponse, GenerationConfig
 import vertexai
 import time
 
@@ -49,18 +49,18 @@ class RAGPipeline:
         self.initialized = False
         
     def initialize_vertex_ai(self):
-    """Initialize Vertex AI with project configuration"""
-    try:
-        # Check for authentication
-        if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
-            st.error("Google Cloud credentials not found. Please authenticate first.")
+        """Initialize Vertex AI with project configuration"""
+        try:
+            # Check for authentication
+            if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+                st.error("Google Cloud credentials not found. Please authenticate first.")
+                return False
+                
+            vertexai.init(project=PROJECT_ID, location=LOCATION)
+            return True
+        except Exception as e:
+            st.error(f"Failed to initialize Vertex AI: {str(e)}")
             return False
-            
-        vertexai.init(project=PROJECT_ID, location=LOCATION)
-        return True
-    except Exception as e:
-        st.error(f"Failed to initialize Vertex AI: {str(e)}")
-        return False
     
     def create_corpus(self, display_name: str, paths: List[str]) -> bool:
         """Create RAG corpus and import files"""
@@ -101,7 +101,7 @@ class RAGPipeline:
             return False
     
     def setup_model(self, top_k: int = 7, vector_distance_threshold: float = 0.5, 
-                   llm_model_name: str = "gemini-2.0-flash-001"):
+               llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 1.0):
         """Setup the RAG model with retrieval tool"""
         try:
             # Direct context retrieval
@@ -121,9 +121,11 @@ class RAGPipeline:
             )
             
             # Create a model instance
+            generation_config = GenerationConfig(temperature=temperature)
             self.rag_model = GenerativeModel(
                 model_name=llm_model_name, 
-                tools=[rag_retrieval_tool]
+                tools=[rag_retrieval_tool],
+                generation_config=generation_config
             )
             
             self.initialized = True
@@ -133,15 +135,38 @@ class RAGPipeline:
             st.error(f"Failed to setup model: {str(e)}")
             return False
     
-    def query(self, user_query: str, system_prompt: str) -> Optional[GenerationResponse]:
-        """Generate response for user query"""
+    # def query(self, user_query: str, system_prompt: str) -> Optional[GenerationResponse]:
+        # """Generate response for user query"""
+        # if not self.initialized:
+            # st.error("RAG pipeline not initialized")
+            # return None
+            
+        # try:
+            # full_query = system_prompt + user_query
+            # response = self.rag_model.generate_content(full_query)
+            # return response
+        # except Exception as e:
+            # st.error(f"Failed to generate response: {str(e)}")
+            # return None
+    
+    def query(self, user_query: str, system_prompt: str, chat_history: List[Tuple[str, str]] = None) -> Optional[GenerationResponse]:
+        """Generate response for user query with conversation context"""
         if not self.initialized:
             st.error("RAG pipeline not initialized")
             return None
             
         try:
-            full_query = system_prompt + user_query
-            response = self.rag_model.generate_content(full_query)
+            # Build conversation context
+            conversation_context = system_prompt
+            
+            if chat_history:
+                conversation_context += "\n\nPrevious conversation:\n"
+                for prev_query, prev_response in chat_history[-3:]:  # Use last 3 exchanges
+                    conversation_context += f"User: {prev_query}\nAssistant: {prev_response}\n\n"
+            
+            conversation_context += f"Current user query: {user_query}"
+            
+            response = self.rag_model.generate_content(conversation_context)
             return response
         except Exception as e:
             st.error(f"Failed to generate response: {str(e)}")
@@ -169,7 +194,7 @@ class RAGPipeline:
 
 def main():
     st.set_page_config(
-        page_title="Research Paper RAG Demo",
+        page_title="Flight Test Safety Council RAG Pipeline",
         page_icon="🔍",
         layout="wide"
     )
@@ -179,8 +204,8 @@ def main():
         st.info("👈 Please upload your Google Cloud service account key in the sidebar to get started.")
         return
     
-    st.title("🔍 Research Paper RAG Demo")
-    st.markdown("*AI-powered research assistant for technical conference papers*")
+    st.title("🔍 Flight Test Safety Committee AI Search Tool V1")
+    st.markdown("*AI-powered search assistant for the Flight Test Safety Database*")
     
     # Initialize session state
     if 'rag_pipeline' not in st.session_state:
@@ -195,54 +220,88 @@ def main():
         st.header("⚙️ Configuration")
         
         # RAG Parameters
+        # RAG Parameters
         st.subheader("RAG Parameters")
-        top_k = st.slider("Number of sources to retrieve", 3, 15, 7)
-        vector_threshold = st.slider("Vector distance threshold", 0.1, 1.0, 0.5, 0.1)
-        
-        # Model selection
-        model_options = [
-            "gemini-2.0-flash-001",
-            "gemini-1.5-pro",
-            "gemini-1.5-flash"
-        ]
-        selected_model = st.selectbox("LLM Model", model_options)
-        
-        # Data source configuration
-        st.subheader("Data Sources")
-        default_path = "https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"
-        data_paths = st.text_area(
-            "Google Drive folder URLs (one per line):",
-            value=default_path,
-            help="Enter Google Drive folder URLs containing your research papers"
+        top_k = st.slider(
+            "Number of sources to retrieve", 
+            3, 15, 10,
+            help="Controls how many relevant documents the model looks at when compiling an answer to your query."
+        )
+        vector_threshold = st.slider(
+            "Vector distance threshold", 
+            0.1, 1.0, 0.4, 0.1,
+            help="Sets the minimum similarity required for a document to be considered relevant (lower = more strict)."
+        )
+        temperature = st.slider(
+            "Model temperature", 
+            0.0, 2.0, 1.0, 0.1,
+            help="Controls creativity of responses (0.0 = deterministic, 1.0 = default, 2.0 = very creative)."
         )
         
+        # Model selection
+        # model_options = [
+            # "gemini-2.0-flash-001",
+            # "gemini-1.5-pro",
+            # "gemini-1.5-flash"
+        # ]
+        selected_model = "gemini-2.0-flash-001" #st.selectbox("LLM Model", model_options)
+        
+        # Data source configuration
+        #st.subheader("Data Sources")
+        # default_path = "https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"
+        # data_paths = st.text_area(
+            # "Google Drive folder URLs (one per line):",
+            # value=default_path,
+            # help="Enter Google Drive folder URLs containing your research papers"
+        # )
+        
         # Parse paths
-        paths = [path.strip() for path in data_paths.split('\n') if path.strip()]
+        #paths = [path.strip() for path in data_paths.split('\n') if path.strip()]
         
         # Corpus management
-        st.subheader("Corpus Management")
-        corpus_name = st.text_input("Corpus Name", "demo_corpus")
+        #st.subheader("Corpus Management")
+        #corpus_name = st.text_input("Corpus Name", "demo_corpus")
         
         if st.button("🚀 Initialize RAG Pipeline", type="primary"):
-            if not paths:
-                st.error("Please provide at least one data source path")
-            else:
-                with st.spinner("Initializing RAG pipeline..."):
-                    # Initialize Vertex AI
-                    if st.session_state.rag_pipeline.initialize_vertex_ai():
-                        st.success("✅ Vertex AI initialized")
+            # Hardcoded values
+            corpus_name = "FTSC Database"
+            paths = ["https://drive.google.com/drive/folders/1UZlVFT1aIDTD3J42wL-0Rn9BFwZDOJlD"]
+            
+            with st.spinner("Initializing RAG pipeline..."):
+                # Initialize Vertex AI
+                if st.session_state.rag_pipeline.initialize_vertex_ai():
+                    st.success("✅ Vertex AI initialized")
+                    
+                    # Create corpus
+                    if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
+                        st.success("✅ Corpus created and files imported")
                         
-                        # Create corpus
-                        if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
-                            st.success("✅ Corpus created and files imported")
+                        # Setup model
+                        if st.session_state.rag_pipeline.setup_model(top_k=top_k, vector_distance_threshold=vector_threshold, llm_model_name=selected_model, temperature=temperature):
+                            st.success("✅ RAG model ready!")
+                            st.session_state.corpus_created = True
+                            st.rerun()
                             
-                            # Setup model
-                            if st.session_state.rag_pipeline.setup_model(
-                                top_k, vector_threshold, selected_model
-                            ):
-                                st.success("✅ RAG model ready!")
-                                st.session_state.corpus_created = True
-                                st.rerun()
+        # if st.button("🚀 Initialize RAG Pipeline", type="primary"):
+            # if not paths:
+                # st.error("Please provide at least one data source path")
+            # else:
+                # with st.spinner("Initializing RAG pipeline..."):
+                    # # Initialize Vertex AI
+                    # if st.session_state.rag_pipeline.initialize_vertex_ai():
+                        # st.success("✅ Vertex AI initialized")
+                        
+                        # # Create corpus
+                        # if st.session_state.rag_pipeline.create_corpus(corpus_name, paths):
+                            # st.success("✅ Corpus created and files imported")
+                            
+                            # # Setup model
+                            # if st.session_state.rag_pipeline.setup_model(
+                                # top_k, vector_threshold, selected_model
+                            # ):
+                                # st.success("✅ RAG model ready!")
+                                # st.session_state.corpus_created = True
+                                # st.rerun()
         
         # Show advanced options
         show_chunks = st.checkbox("Show retrieved chunks", False)
@@ -259,72 +318,134 @@ def main():
         # Show demo information
         st.markdown("## About This Demo")
         st.markdown("""
-        This demo showcases a Retrieval-Augmented Generation (RAG) system for research papers:
+        This tool provides intelligent search capabilities for the Flight Test Safety Council paper database:
         
-        - **🔍 Intelligent Search**: Find relevant papers using semantic search
-        - **📚 Context-Aware Responses**: Get detailed answers based on paper content
-        - **🎯 Relevance Ranking**: Papers ranked by relevance to your query
-        - **📖 Source Attribution**: Clear citations and references
+        - **🔍 Technical Search**: Find relevant papers using semantic search across flight test documentation
+        - **📚 Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
+        - **🎯 Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
+        - **📖 Source Attribution**: Clear citations from FTSC papers and technical reports
         
         **To use:**
-        1. Configure your parameters in the sidebar
-        2. Add your Google Drive folder URLs containing research papers
-        3. Click "Initialize RAG Pipeline" and wait for setup
-        4. Start asking questions about the research papers!
+        1. Configure your search parameters in the sidebar
+        2. Initialize the RAG pipeline to connect to the FTSC database
+        3. Ask questions about flight test procedures, safety considerations, or lessons learned
+        4. Get comprehensive answers with source citations!
+        
+        **Example queries:**
+        - "What are some prior papers about high altitude flight testing?"
+        - "What do I need to know about autonomous vehicle flight testing?"
+        - "What safety considerations apply to envelope expansion testing?"
+        - "Are there lessons learned from flutter testing incidents?"
         """)
         
     else:
         # System prompt
-        system_prompt = """You are a research assistant analyzing technical conference papers. Your task is to identify papers relevant to the specific topic mentioned in the query. When determining relevance:
-        1. Focus on direct technical connections to the query topic
-        2. Consider both explicit mentions and implicit relevance through related methodologies
-        3. Rank papers by how central the query topic is to the paper's main contributions
-        4. Be precise about why each paper is or isn't relevant
-        5. Cite specific sections when possible
-        6. If uncertain about relevance, explain why
-        7. Always mention sources by title, not just their source number.
-        8. Do not recommend specific courses of action to the user. Only suggest which sources they should read and why.
-        Based on these criteria, analyze the provided papers to answer the query: """
+        system_prompt = """You are a flight test expert analyzing technical papers and documentation. When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
+
+        1. **Unique characteristics** and challenges specific to that test type
+        2. **Specialized equipment, procedures, or methodologies** required
+        3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
+        4. **Technical differences** from standard flight test approaches
+        5. **Specialized certification or regulatory requirements** if applicable
+        
+        ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
+
+        Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
+
+        Query: """
         
         # Chat interface
-        st.subheader("💬 Research Assistant")
-        
+        # Chat interface
+        st.subheader("💬 Search Assistant")
+
         # Display chat history
-        for i, (query, response) in enumerate(st.session_state.chat_history):
-            with st.container():
-                st.markdown(f"**You:** {query}")
-                st.markdown(f"**Assistant:** {response}")
-                st.divider()
+        chat_container = st.container()
+        with chat_container:
+            for i, (query, response) in enumerate(st.session_state.chat_history):
+                with st.chat_message("user"):
+                    st.write(query)
+                with st.chat_message("assistant"):
+                    st.write(response)
+
+        # Query input at the bottom
+        user_query = st.chat_input("Ask about flight test procedures, safety considerations, or lessons learned...")
+
+        if user_query:
+            # Add user message to chat immediately
+            st.session_state.chat_history.append((user_query, ""))
+            
+            # Display user message
+            with st.chat_message("user"):
+                st.write(user_query)
+            
+            # Generate and display response
+            with st.chat_message("assistant"):
+                with st.spinner("Searching and generating response..."):
+                    # Pass chat history for context (excluding the current incomplete entry)
+                    response = st.session_state.rag_pipeline.query(
+                        user_query, 
+                        system_prompt, 
+                        st.session_state.chat_history[:-1]  # Exclude current incomplete entry
+                    )
+                    
+                    if response:
+                        st.write(response.text)
+                        
+                        # Update the last entry with the response
+                        st.session_state.chat_history[-1] = (user_query, response.text)
+                        
+                        # Show retrieved chunks if requested
+                        if show_chunks:
+                            with st.expander("🔍 Retrieved Chunks (Debug Info)"):
+                                chunks = st.session_state.rag_pipeline.get_retrieved_chunks(
+                                    user_query, system_prompt, top_k, vector_threshold
+                                )
+                                if chunks:
+                                    st.code(str(chunks), language="text")
+                    else:
+                        error_msg = "Sorry, I couldn't generate a response. Please try again."
+                        st.error(error_msg)
+                        st.session_state.chat_history[-1] = (user_query, error_msg)
+            
+            st.rerun()
+        # st.subheader("💬 Search Assistant")
         
-        # Query input
-        user_query = st.text_input(
-            "Ask a question about the research papers:",
-            placeholder="e.g., What papers discuss transformer architectures for natural language processing?"
-        )
+        # # Display chat history
+        # for i, (query, response) in enumerate(st.session_state.chat_history):
+            # with st.container():
+                # st.markdown(f"**You:** {query}")
+                # st.markdown(f"**Assistant:** {response}")
+                # st.divider()
         
-        if st.button("🔍 Search") and user_query:
-            with st.spinner("Searching and generating response..."):
-                # Get response
-                response = st.session_state.rag_pipeline.query(user_query, system_prompt)
+        # # Query input
+        # user_query = st.text_input(
+            # "Please enter your query:",
+            # placeholder="e.g., What do I need to know about high-altitude flight test?"
+        # )
+        
+        # if st.button("🔍 Search") and user_query:
+            # with st.spinner("Searching and generating response..."):
+                # # Get response
+                # response = st.session_state.rag_pipeline.query(user_query, system_prompt)
                 
-                if response:
-                    # Display response
-                    st.markdown("### Response:")
-                    st.markdown(response.text)
+                # if response:
+                    # # Display response
+                    # st.markdown("### Response:")
+                    # st.markdown(response.text)
                     
-                    # Add to chat history
-                    st.session_state.chat_history.append((user_query, response.text))
+                    # # Add to chat history
+                    # st.session_state.chat_history.append((user_query, response.text))
                     
-                    # Show retrieved chunks if requested
-                    if show_chunks:
-                        with st.expander("🔍 Retrieved Chunks (Debug Info)"):
-                            chunks = st.session_state.rag_pipeline.get_retrieved_chunks(
-                                user_query, system_prompt, top_k, vector_threshold
-                            )
-                            if chunks:
-                                st.code(str(chunks), language="text")
+                    # # Show retrieved chunks if requested
+                    # if show_chunks:
+                        # with st.expander("🔍 Retrieved Chunks (Debug Info)"):
+                            # chunks = st.session_state.rag_pipeline.get_retrieved_chunks(
+                                # user_query, system_prompt, top_k, vector_threshold
+                            # )
+                            # if chunks:
+                                # st.code(str(chunks), language="text")
                     
-                    st.rerun()
+                    # st.rerun()
 
 if __name__ == "__main__":
     main()
