@@ -204,7 +204,7 @@ def main():
         st.info("👈 Please upload your Google Cloud service account key in the sidebar to get started.")
         return
     
-    st.title("🔍 Flight Test Safety Committee AI Search Tool V1")
+    st.title("🔍 Flight Test Safety Committee - AI Search Tool")
     st.markdown("*AI-powered search assistant for the Flight Test Safety Database*")
     
     # Initialize session state
@@ -313,19 +313,22 @@ def main():
     
     # Main content area
     
-    system_prompt = """You are a flight test expert analyzing technical papers and documentation. When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
-
+    system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+    
+    When the user asks a query, you will return a list of sources in the database that are relevant to that query, along with a 1-paragraph summary of the relevant content from each source. 
+    
+    When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
     1. **Unique characteristics** and challenges specific to that test type
     2. **Specialized equipment, procedures, or methodologies** required
     3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
     4. **Technical differences** from standard flight test approaches
     5. **Specialized certification or regulatory requirements** if applicable
     
-    Maintain the conversation to the best of your ability. For example, respond to the user's follow-on questions, and end your responses with your own follow-on questions to continue the conversation.
-    
     ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
 
     Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
+    
+    Maintain the conversation to the best of your ability. For example, respond to the user's follow-on questions, and end your responses with your own follow-on questions to continue the conversation.
 
     Query: """
     
@@ -333,12 +336,12 @@ def main():
         st.info("Please initialize the RAG pipeline using the sidebar to get started.")
         
         # Show demo information
-        st.markdown("## About This Demo")
         st.markdown(f"""
-        This tool provides intelligent search capabilities for the Flight Test Safety Council paper database:
+        This tool is a Retrieval-Augmented Generation (RAG)-based intelligent search tool for the Flight Test Safety Committee paper database:
         
         - **Technical Search**: Find relevant papers using semantic search across flight test documentation
-        - **Lessons Learned**: Get detailed insights based on prior flight test experiences and safety considerations
+        - **Lessons Learned**: Get detailed insights based on prior flight test experiences and safety data
+        - **Relevance Ranking**: Papers ranked by relevance to your specific flight test scenario
         - **Source Attribution**: Clear citations from FTSC papers and technical reports
         
         **To use:**
@@ -348,22 +351,28 @@ def main():
         4. Get comprehensive answers with source citations
         
         **Example queries:**
-        - "Which sources in the database talk about high-altitude flight testing?"
+        - "What are some prior papers about high altitude flight testing?"
         - "What do I need to know about autonomous vehicle flight testing?"
         - "What safety considerations apply to envelope expansion testing?"
-        - "What are some lessons learned from flutter testing incidents?"
+        - "Are there lessons learned from flutter testing incidents?"
         
         ## How does this tool work?
         
-        This tool uses a technique called **Retrieval Augmented Generation**, which uses a large language model (LLM) connected to a database of information (a "corpus").
+        This tool uses a technique called **Retrieval-Augmented Generation**, which uses a large language model(LLM) connected to a database of information (a "corpus").
 
-        Retrieval Augmented Generation (RAG) allows us to fine-tune an LLM to a specific database or use-case without requiring any retraining. The RAG process happens in several steps when you submit a query:
+        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or use case without the need for retraining, which would be expensive and infeasible for small-scale use. 
+        
+        RAG does the following:
+            
+        1. **Corpus Creation**: Upon setup, the files in the database (corpus) are broken into "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. From this point on, the RAG tool works with this vector database of document embeddings, not the raw files (e.g. PDFs) in the original database.
 
-        1. **Document Retrieval**: Your question is converted into a vector representation (called an "embedding") that encodes its semantic meaning. The system then searches through embeddings of all documents in the FTSC database to find the most relevant papers and sections.
+        2. **Document Retrieval**: When you ask a query, it is converted into a vector embedding in the same way as the database files. The **retrieval system** then searches through embeddings of all documents in the FTSC database to find the vectors in the corpus that are most similar to the query - these correspond to the most relevant papers and their specific relevant sections.
 
-        2. **Context Assembly**: The most relevant document chunks are retrieved and combined with your query to create the raw material for the LLM to base its response on.
+        3. **Context Assembly**: The most relevant document chunks are retrieved and combined with your original question to create a comprehensive context.
 
-        3. **Response Generation**: The LLM (in our case, Gemini) uses this retrieved informationto generate a response to your query based on the sources in the database.
+        4. **Response Generation**: A large language model (in our case, a lightweight variant of Gemini) uses the combined context from step 3 to generate a response to your query. 
+        
+        Because the context from step 3 is focused on the most relevant content from the database, the response is tailored to your query and is less likely to be distracted by irrelevant content in the database.
         
         Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a **system prompt** which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
         """)
@@ -384,7 +393,7 @@ def main():
                     st.write(response)
 
         # Query input at the bottom
-        user_query = st.chat_input("Ask about flight test procedures, safety considerations, or lessons learned...")
+        user_query = st.chat_input("Ask about flight test techniques, safety considerations, lessons learned...")
 
         if user_query:
             # Add user message to chat immediately
