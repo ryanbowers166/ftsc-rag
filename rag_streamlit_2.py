@@ -141,20 +141,6 @@ class RAGPipeline:
             st.error(f"Failed to setup model: {str(e)}")
             return False
     
-    # def query(self, user_query: str, system_prompt: str) -> Optional[GenerationResponse]:
-        # """Generate response for user query"""
-        # if not self.initialized:
-            # st.error("RAG pipeline not initialized")
-            # return None
-            
-        # try:
-            # full_query = system_prompt + user_query
-            # response = self.rag_model.generate_content(full_query)
-            # return response
-        # except Exception as e:
-            # st.error(f"Failed to generate response: {str(e)}")
-            # return None
-    
     def query(self, user_query: str, system_prompt: str, chat_history: List[Tuple[str, str]] = None) -> Optional[GenerationResponse]:
         """Generate response for user query with conversation context"""
         if not self.initialized:
@@ -200,8 +186,8 @@ class RAGPipeline:
 
 def main():
     st.set_page_config(
-        page_title="Flight Test Safety Council RAG Pipeline",
-        page_icon="🔍",
+        page_title="Flight Test Safety Committee RAG Search Tool",
+        page_icon="",
         layout="wide"
     )
     
@@ -210,7 +196,7 @@ def main():
     #     st.info("👈 Please upload your Google Cloud service account key in the sidebar to get started.")
     #     return
     
-    st.title("🔍 Flight Test Safety Committee - AI Search Tool")
+    st.title("Flight Test Safety Committee RAG Search Tool")
     st.markdown("*AI-powered search assistant for the Flight Test Safety Database*")
     
     # Initialize session state
