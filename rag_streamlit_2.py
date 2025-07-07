@@ -229,6 +229,34 @@ def main():
             0.0, 2.0, 1.0, 0.1,
             help="Controls creativity of responses (0.0 = deterministic, 1.0 = default, 2.0 = very creative)."
         )
+
+        # System Prompt Configuration
+        st.subheader("System Prompt")
+        default_system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+        
+        When the user asks a query, you will return a list of sources in the database that are relevant to that query, along with a 1-paragraph summary of the relevant content from each source. 
+        
+        When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
+        1. **Unique characteristics** and challenges specific to that test type
+        2. **Specialized equipment, procedures, or methodologies** required
+        3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
+        4. **Technical differences** from standard flight test approaches
+        5. **Specialized certification or regulatory requirements** if applicable
+        
+        ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
+        
+        Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
+        
+        Maintain the conversation to the best of your ability. For example, respond to the user's follow-on questions, and end your responses with your own follow-on questions to continue the conversation.
+        
+        Query: """
+        
+        system_prompt = st.text_area(
+            "System Prompt:",
+            value=default_system_prompt,
+            height=300,
+            help="This prompt defines how the AI assistant behaves and responds to queries."
+        )
         
         # Model selection
         # model_options = [
@@ -305,7 +333,7 @@ def main():
     
     # Main content area
     
-    system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+    default_system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
     
     When the user asks a query, you will return a list of sources in the database that are relevant to that query, along with a 1-paragraph summary of the relevant content from each source. 
     
@@ -369,7 +397,7 @@ def main():
         Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a **system prompt** which your query is appended to. This prompt shapes the model's behavior, tone, and things it is allowed and not allowed to say in response to your query. In our case, we use this system prompt:
         """)
         
-        st.code(system_prompt, language="text")
+        st.code(default_system_prompt, language="text")
         
         
     else:
