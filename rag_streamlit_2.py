@@ -206,9 +206,9 @@ def main():
     )
     
     # Add authentication check
-    if not setup_authentication():
-        st.info("👈 Please upload your Google Cloud service account key in the sidebar to get started.")
-        return
+    # if not setup_authentication():
+    #     st.info("👈 Please upload your Google Cloud service account key in the sidebar to get started.")
+    #     return
     
     st.title("🔍 Flight Test Safety Committee - AI Search Tool")
     st.markdown("*AI-powered search assistant for the Flight Test Safety Database*")
