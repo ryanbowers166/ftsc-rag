@@ -14,33 +14,33 @@ import json
 import tempfile
 from google.oauth2 import service_account
 
-def setup_authentication():
-    """Setup Google Cloud authentication via file upload"""
-    uploaded_file = st.sidebar.file_uploader(
-        "Upload Google Cloud Service Account Key (JSON)", 
-        type="json",
-        help="Upload your service account key file to authenticate with Google Cloud"
-    )
+# def setup_authentication():
+#     """Setup Google Cloud authentication via file upload"""
+#     uploaded_file = st.sidebar.file_uploader(
+#         "Upload Google Cloud Service Account Key (JSON)", 
+#         type="json",
+#         help="Upload your service account key file to authenticate with Google Cloud"
+#     )
     
-    if uploaded_file is not None:
-        # Save the uploaded file temporarily
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            credentials_dict = json.load(uploaded_file)
-            json.dump(credentials_dict, f)
-            temp_path = f.name
+#     if uploaded_file is not None:
+#         # Save the uploaded file temporarily
+#         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+#             credentials_dict = json.load(uploaded_file)
+#             json.dump(credentials_dict, f)
+#             temp_path = f.name
         
-        # Set the environment variable
-        os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_path
-        st.sidebar.success("✅ Credentials uploaded successfully!")
-        return True
+#         # Set the environment variable
+#         os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_path
+#         st.sidebar.success("✅ Credentials uploaded successfully!")
+#         return True
     
-    # Check if credentials are already set
-    if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
-        st.sidebar.success("✅ Credentials already configured")
-        return True
+#     # Check if credentials are already set
+#     if os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+#         st.sidebar.success("✅ Credentials already configured")
+#         return True
     
-    st.sidebar.warning("⚠️ Please upload your service account key to continue")
-    return False
+#     st.sidebar.warning("⚠️ Please upload your service account key to continue")
+#     return False
 
 class RAGPipeline:
     def __init__(self):
@@ -52,11 +52,17 @@ class RAGPipeline:
         """Initialize Vertex AI with project configuration"""
         try:
             # Check for authentication
+            service_account_info = st.secrets["gcp_service_account"]
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                json.dump(dict(service_account_info), f)
+                service_account_path = f.name
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = service_account_path
+            
             if not os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
                 st.error("Google Cloud credentials not found. Please authenticate first.")
                 return False
                 
-            vertexai.init(project=PROJECT_ID, location=LOCATION)
+            vertexai.init(project=PROJECT_ID, location="us-central1")
             return True
         except Exception as e:
             st.error(f"Failed to initialize Vertex AI: {str(e)}")
