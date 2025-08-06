@@ -1,3 +1,5 @@
-streamlit
-google-cloud-aiplatform
-vertexai
+flask==2.3.3
+flask-cors==4.0.0
+google-cloud-aiplatform==1.38.0
+gunicorn==21.2.0
+vertexai==1.38.0

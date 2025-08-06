@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FTSC Paper Database RAG Search Tool </title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .query-section {
+            margin-bottom: 30px;
+        }
+
+        .query-form {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .query-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .submit-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .status-healthy {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .status-loading {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .response-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .response-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1e293b;
+            margin-right: 15px;
+        }
+
+        .response-content {
+            line-height: 1.6;
+            color: #334155;
+            white-space: pre-wrap;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #fecaca;
+        }
+
+        .example-queries {
+            background: #f0f9ff;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #bae6fd;
+        }
+
+        .example-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #0c4a6e;
+            margin-bottom: 10px;
+        }
+
+        .example-item {
+            background: white;
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: 1px solid #e0f2fe;
+        }
+
+        .example-item:hover {
+            background: #f0f9ff;
+        }
+		
+		.info-block {
+		background: #f1f5f9;
+		border-top: 2px solid #e2e8f0;
+		padding: 30px;
+		text-align: left;
+		font-size: 1em;
+		color: #334155;
+		max-width: 1200px;  /* match .container width */
+		margin: 30px auto;  /* center and add spacing */
+		border-radius: 20px; /* optional for consistency */
+	}
+
+	.info-block h2 {
+		font-size: 1.5em;
+		margin-bottom: 15px;
+		color: #1e293b;
+	}
+
+	.info-block p {
+		margin-bottom: 1em; /* spacing between paragraphs */
+	}
+
+	.info-block pre {
+		background-color: #f4f4f4;
+		padding: 12px;
+		border-radius: 6px;
+		overflow-x: auto;
+		font-size: 0.9em;
+		white-space: pre-wrap;   /* allow wrapping */
+		word-wrap: break-word;   /* break long words */
+		display: none;           /* hidden by default for toggle */
+	}
+
+	.info-block .toggle-btn {
+		display: inline-block;
+		background: #3b82f6;
+		color: white;
+		padding: 6px 12px;
+		margin-bottom: 10px;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.9em;
+		border: none;
+	}
+
+	.info-block .toggle-btn:hover {
+		background: #2563eb;
+	}
+
+
+        @media (max-width: 768px) {
+            .query-form {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>FTSC Paper Database RAG Search Tool</h1>
+            <p>Ask questions about technical conference papers</p>
+        </div>
+
+        <div class="main-content">
+            <div id="status-indicator" class="status-indicator status-loading">
+                <div class="loading-spinner"></div>
+                Checking service status...
+            </div>
+
+            <div class="query-section">
+                <form id="queryForm" class="query-form">
+                    <input 
+                        type="text" 
+                        id="queryInput" 
+                        class="query-input" 
+                        placeholder="Enter your search question..."
+                        required
+                    >
+                    <button type="submit" id="submitBtn" class="submit-btn">
+                        Search Papers
+                    </button>
+                </form>
+
+                <div class="example-queries">
+                    <div class="example-title">💡 Example Queries:</div>
+                    <div class="example-item" onclick="setQuery('What are some prior papers about high altitude flight testing?')">
+                        What are some prior papers about high altitude flight testing?
+                    </div>
+                    <div class="example-item" onclick="setQuery('What do I need to know about flight testing autonomous vehicles?')">
+                        What do I need to know about flight testing autonomous vehicles?
+                    </div>
+                    <div class="example-item" onclick="setQuery('What safety considerations apply to envelope expansion testing?')">
+                        What safety considerations apply to envelope expansion testing?
+                    </div>
+                </div>
+            </div>
+
+            <div id="responseSection" class="response-section" style="display: none;">
+                <div class="response-header">
+                    <div class="response-title">📄 Search Results</div>
+                </div>
+                <div id="responseContent" class="response-content"></div>
+            </div>
+        </div>
+    </div>
+
+	<div class="info-block" style="line-height: 1.6;">
+    <h2>How does this tool work?</h2>
+    
+    <p>
+        This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>, 
+        which uses a large language model (LLM) connected to a database of information (a "corpus").
+    </p>
+    
+    <p>
+        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or 
+        use case without the need for retraining, which would be expensive and infeasible for small-scale use.
+    </p>
+    
+    <p><strong>RAG does the following:</strong></p>
+    
+    <p>
+        <strong>1. Corpus Creation:</strong> Upon setup, the files in the database (corpus) are broken into 
+        "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
+        From this point on, the RAG tool works with this vector database of document embeddings, 
+        not the raw files (e.g. PDFs) in the original database.
+    </p>
+    
+    <p>
+        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a vector embedding 
+        in the same way as the database files. The retrieval system then searches through embeddings of all 
+        documents in the FTSC database to find the vectors in the corpus that are most similar to the query — 
+        these correspond to the most relevant papers and their specific relevant sections.
+    </p>
+    
+    <p>
+        <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined 
+        with your original question to create a comprehensive context.
+    </p>
+    
+    <p>
+        <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant 
+        of Gemini) uses the combined context from step 3 to generate a response to your query.
+    </p>
+    
+    <p>
+        Because the context from step 3 is focused on the most relevant content from the database, 
+        the response is tailored to your query and is less likely to be distracted by irrelevant content.
+    </p>
+    
+    <p>
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt 
+        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is 
+        allowed and not allowed to say in response to your query. In our case, we use this system prompt:
+    </p>
+    
+    <pre><code>
+		You are a helpful chat agent helping a flight test professional analyze technical papers and documentation.
+		You will help the user find relevant sources in the database about flight test techniques, procedures, 
+		considerations, and lessons learned.
+
+		When the user asks a query, you will return a list of sources in the database that are relevant to that query, 
+		along with a 1-paragraph summary of the relevant content from each source.
+
+		When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, 
+		supersonic, etc.), focus on:
+		1. Unique characteristics and challenges specific to that test type
+		2. Specialized equipment, procedures, or methodologies required
+		3. Specific risks, considerations, or constraints that don't apply to general flight testing
+		4. Technical differences from standard flight test approaches
+		5. Specialized certification or regulatory requirements if applicable
+
+		ALWAYS cite specific sources in the database that you use to form your responses. When citing sources, 
+		always mention paper titles and explain why each source is relevant to the specific type of testing being discussed.
+
+		Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless 
+		it's specifically adapted for the test type in question.
+
+		Maintain the conversation to the best of your ability. For example, respond to the user's follow-on questions, 
+		and end your responses with your own follow-on questions to continue the conversation.
+
+		Query:
+    </code></pre>
+</div>
+
+
+
+    <script>
+        // Configuration
+        const RAG_SERVICE_URL = 'https://rag-service-YOUR-HASH-uc.a.run.app'; // Replace with your Cloud Run URL
+        
+        // DOM elements
+        const statusIndicator = document.getElementById('status-indicator');
+        const queryForm = document.getElementById('queryForm');
+        const queryInput = document.getElementById('queryInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const responseSection = document.getElementById('responseSection');
+        const responseContent = document.getElementById('responseContent');
+
+        // Check service status on page load
+        checkServiceStatus();
+
+        // Form submission handler
+        queryForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await submitQuery();
+        });
+
+        async function checkServiceStatus() {
+            try {
+                const response = await fetch(`${RAG_SERVICE_URL}/health`);
+                const data = await response.json();
+                
+                if (data.status === 'healthy' && data.initialized) {
+                    updateStatus('Service ready', 'healthy');
+                } else if (data.status === 'healthy' && !data.initialized) {
+                    updateStatus('Service starting up...', 'loading');
+                    // Try to initialize
+                    await initializeService();
+                } else {
+                    updateStatus('Service unavailable', 'error');
+                }
+            } catch (error) {
+                updateStatus('Cannot connect to service', 'error');
+                console.error('Health check failed:', error);
+            }
+        }
+
+        async function initializeService() {
+            try {
+                const response = await fetch(`${RAG_SERVICE_URL}/initialize`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateStatus('Service ready', 'healthy');
+                } else {
+                    updateStatus('Initialization failed', 'error');
+                }
+            } catch (error) {
+                updateStatus('Initialization failed', 'error');
+                console.error('Initialization failed:', error);
+            }
+        }
+
+        async function submitQuery() {
+            const query = queryInput.value.trim();
+            
+            if (!query) {
+                alert('Please enter a query');
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<div class="loading-spinner"></div>Searching...';
+            responseSection.style.display = 'none';
+
+            try {
+                const response = await fetch(`${RAG_SERVICE_URL}/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show successful response
+                    responseContent.textContent = data.response;
+                    responseSection.style.display = 'block';
+                    responseContent.className = 'response-content';
+                } else {
+                    // Show error
+                    responseContent.textContent = `Error: ${data.error}`;
+                    responseSection.style.display = 'block';
+                    responseContent.className = 'response-content error-message';
+                }
+
+            } catch (error) {
+                // Show network error
+                responseContent.textContent = `Network error: ${error.message}`;
+                responseSection.style.display = 'block';
+                responseContent.className = 'response-content error-message';
+                console.error('Query failed:', error);
+            } finally {
+                // Reset button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Search Papers';
+            }
+        }
+
+        function updateStatus(message, type) {
+            statusIndicator.className = `status-indicator status-${type}`;
+            
+            if (type === 'loading') {
+                statusIndicator.innerHTML = `<div class="loading-spinner"></div>${message}`;
+            } else {
+                const icon = type === 'healthy' ? '✅' : '❌';
+                statusIndicator.innerHTML = `${icon} ${message}`;
+            }
+        }
+
+        function setQuery(query) {
+            queryInput.value = query;
+            queryInput.focus();
+        }
+
+        // Auto-check service status every 30 seconds
+        setInterval(checkServiceStatus, 30000);
+    </script>
+</body>
+</html>
