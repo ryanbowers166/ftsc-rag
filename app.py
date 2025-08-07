@@ -8,6 +8,7 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
 from vertexai.preview import rag
 from google.cloud import aiplatform
 import json
+import tempfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,9 +26,38 @@ class RAGSystem:
         self.PROJECT_ID = "ftscrag"
         self.LOCATION = "us-central1"
         
+    def setup_authentication(self):
+        """Setup Google Cloud authentication"""
+        try:
+            # Check if we're in Cloud Shell or have default credentials
+            if os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('DEVSHELL_PROJECT_ID'):
+                logger.info("Using Cloud Shell default credentials")
+                return True
+            
+            # Fallback to JSON credentials
+            credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+            if credentials_json:
+                credentials_dict = json.loads(credentials_json)
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                    json.dump(credentials_dict, f)
+                    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = f.name
+                return True
+            elif os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
+                return True
+            else:
+                logger.error("No Google Cloud credentials found")
+                return False
+        except Exception as e:
+            logger.error(f"Authentication setup failed: {str(e)}")
+            return False
+        
     def initialize(self):
         """Initialize the RAG system with Vertex AI"""
         try:
+            if not self.setup_authentication():
+                logger.error("Authentication setup failed")
+                return False
+            
             logger.info("Initializing Vertex AI...")
             # Initialize Vertex AI
             vertexai.init(project=self.PROJECT_ID, location=self.LOCATION)
@@ -205,6 +235,19 @@ class RAGSystem:
             logger.error(f"Failed to setup model: {str(e)}")
             return False
     
+    def load_existing_corpus(self, corpus_name: str) -> bool:
+        """Load an existing RAG corpus"""
+        try:
+            logger.info(f"Loading existing corpus: {corpus_name}")
+            # Get the corpus by name
+            self.rag_corpus = rag.get_corpus(name=corpus_name)
+            logger.info(f"Loaded corpus: {self.rag_corpus.name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to load corpus: {str(e)}")
+            return False
+    
     def query(self, user_query: str) -> str:
         """Process a query using the RAG system"""
         if not self.initialized or not self.rag_model:
@@ -242,11 +285,14 @@ class RAGSystem:
 # Initialize the RAG system
 rag_system = RAGSystem()
 
+
+
 def initialize_rag_system():
     """Initialize the RAG system with current Vertex AI API"""
     global rag_system
     
     try:
+        
         # Initialize Vertex AI and create corpus from Google Drive
         success = rag_system.initialize()
         
@@ -432,3 +478,4 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
