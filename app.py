@@ -29,24 +29,9 @@ class RAGSystem:
     def setup_authentication(self):
         """Setup Google Cloud authentication"""
         try:
-            # Check if we're in Cloud Shell or have default credentials
-            if os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('DEVSHELL_PROJECT_ID'):
-                logger.info("Using Cloud Shell default credentials")
-                return True
-            
-            # Fallback to JSON credentials
-            credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-            if credentials_json:
-                credentials_dict = json.loads(credentials_json)
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                    json.dump(credentials_dict, f)
-                    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = f.name
-                return True
-            elif os.getenv('GOOGLE_APPLICATION_CREDENTIALS'):
-                return True
-            else:
-                logger.error("No Google Cloud credentials found")
-                return False
+            # In Cloud Shell, just rely on default credentials
+            logger.info("Using Application Default Credentials")
+            return True
         except Exception as e:
             logger.error(f"Authentication setup failed: {str(e)}")
             return False
@@ -478,4 +463,5 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
