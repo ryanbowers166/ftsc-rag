@@ -57,8 +57,8 @@ class RAGSystem:
         try:
             logger.info("Creating corpus from Google Drive folder...")
             
-            # Google Drive folder ID extracted from the URL
-            drive_folder_id = "1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
+            # Google Drive folder URL
+            drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
             
             # Create embedding model config
             embedding_model_config = rag.RagEmbeddingModelConfig(
@@ -78,19 +78,63 @@ class RAGSystem:
             logger.info(f"Corpus created: {self.rag_corpus.name}")
             
             # Import files from Google Drive folder
-            # Note: For Google Drive integration, you have several options:
+            # Using the exact method structure you specified
+            logger.info("Importing files from Google Drive folder...")
+            paths = [drive_folder_url]  # This is list containing the google drive URL
             
-            # Option 1: Use Google Drive URI (if your service account has access)
-            # This requires your service account to have read access to the Drive folder
-            drive_uri = f"gs://drive/{drive_folder_id}/*"
+            rag.import_files(
+                self.rag_corpus.name,
+                paths,  # This is list containing the google drive URL
+                transformation_config=rag.TransformationConfig(
+                    chunking_config=rag.ChunkingConfig(
+                        chunk_size=1024,
+                        chunk_overlap=150,
+                    ),
+                ),
+                max_embedding_requests_per_min=1000,
+            )
             
-            # Option 2: Use the folder ID directly (recommended approach)
-            # Vertex AI RAG can directly access Google Drive folders if properly configured
-            try:
-                logger.info("Importing files from Google Drive folder...")
+            logger.info("Files imported successfully from Google Drive")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to create corpus from Drive: {str(e)}")
+            # Log more detailed error information
+            logger.error(f"Error type: {type(e).__name__}")
+            logger.error(f"Error details: Make sure the Google Drive folder is accessible to your service account")
+            logger.error(f"The folder should be shared with your service account email or made publicly accessible")
+            return False
+    
+    def create_corpus(self, display_name: str, paths: List[str]) -> bool:
+        """Create RAG corpus and import files using the exact method structure"""
+        try:
+            logger.info(f"Creating corpus: {display_name}")
+            
+            # Create embedding model config
+            embedding_model_config = rag.RagEmbeddingModelConfig(
+                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
+                    publisher_model="publishers/google/models/text-embedding-005"
+                )
+            )
+            
+            # Create RagCorpus
+            rag_corpus = rag.create_corpus(
+                display_name=display_name,
+                backend_config=rag.RagVectorDbConfig(
+                    rag_embedding_model_config=embedding_model_config
+                ),
+            )
+            
+            # Store the corpus reference
+            self.rag_corpus = rag_corpus
+            logger.info(f"Corpus created: {rag_corpus.name}")
+            
+            # Import files
+            if paths:
+                logger.info("Importing files to RAG corpus...")
                 rag.import_files(
-                    self.rag_corpus.name,
-                    [f"https://drive.google.com/drive/folders/{drive_folder_id}"],
+                    rag_corpus.name,
+                    paths,  # This is list containing the google drive URL
                     transformation_config=rag.TransformationConfig(
                         chunking_config=rag.ChunkingConfig(
                             chunk_size=1024,
@@ -99,29 +143,14 @@ class RAGSystem:
                     ),
                     max_embedding_requests_per_min=1000,
                 )
-                logger.info("Files imported successfully from Google Drive")
-                
-            except Exception as import_error:
-                logger.warning(f"Direct Drive import failed: {str(import_error)}")
-                logger.info("Attempting alternative import method...")
-                
-                # Alternative: If direct Drive access fails, you might need to:
-                # 1. Copy files to Cloud Storage first, or
-                # 2. Use the Google Drive API to download and upload to GCS
-                # 3. Then import from GCS
-                
-                # For now, we'll create the corpus without files and log instructions
-                logger.warning("Created corpus but file import failed. Manual file upload may be required.")
-                logger.info("To resolve this, ensure your service account has access to the Google Drive folder")
-                logger.info("Or consider copying files to Cloud Storage and importing from there")
+                logger.info("Files imported successfully")
             
             return True
             
         except Exception as e:
-            logger.error(f"Failed to create corpus from Drive: {str(e)}")
+            logger.error(f"Failed to create corpus: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
             return False
-    
-    def load_existing_corpus(self, corpus_name: str) -> bool:
         """Load an existing RAG corpus"""
         try:
             logger.info(f"Loading existing corpus: {corpus_name}")
