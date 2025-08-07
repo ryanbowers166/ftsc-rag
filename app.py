@@ -29,9 +29,19 @@ class RAGSystem:
     def setup_authentication(self):
         """Setup Google Cloud authentication"""
         try:
-            # In Cloud Shell, just rely on default credentials
-            logger.info("Using Application Default Credentials")
+            # In Cloud Shell, use Application Default Credentials
+            logger.info("Using Application Default Credentials in Cloud Shell")
+            
+            # Check if we can access the project
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('DEVSHELL_PROJECT_ID')
+            if project_id:
+                logger.info(f"Found project ID: {project_id}")
+                return True
+            
+            # If no project ID found, still try to proceed
+            logger.info("No project ID environment variable found, but proceeding with default credentials")
             return True
+            
         except Exception as e:
             logger.error(f"Authentication setup failed: {str(e)}")
             return False
@@ -463,5 +473,6 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
