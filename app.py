@@ -5,7 +5,7 @@ import logging
 from typing import List, Tuple, Optional
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
-from vertexai import rag
+from vertexai.preview import rag
 from google.cloud import aiplatform
 import json
 import tempfile
@@ -473,6 +473,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
