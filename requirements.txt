@@ -1,6 +1,6 @@
 flask
 flask-cors
 google-cloud-aiplatform
-google-api-python-client
 google-auth
 vertexai
+gunicorn
