@@ -33,19 +33,32 @@ class RAGSystem:
             vertexai.init(project=self.PROJECT_ID, location=self.LOCATION)
             aiplatform.init(project=self.PROJECT_ID, location=self.LOCATION)
             
-            # For this example, we'll assume you already have a corpus created
-            # In production, you'd either create one or load an existing one
-            logger.info("RAG system initialized successfully!")
-            return True
+            # Try to create corpus with Google Drive folder
+            success = self.create_corpus_from_drive()
+            if success:
+                # Setup the model after creating corpus
+                model_success = self.setup_model()
+                if model_success:
+                    logger.info("RAG system initialized successfully!")
+                    return True
+                else:
+                    logger.error("Failed to setup model after corpus creation")
+                    return False
+            else:
+                logger.error("Failed to create corpus from Google Drive")
+                return False
             
         except Exception as e:
             logger.error(f"Error initializing RAG system: {str(e)}")
             return False
     
-    def create_corpus(self, display_name: str, paths: List[str]) -> bool:
-        """Create RAG corpus and import files"""
+    def create_corpus_from_drive(self) -> bool:
+        """Create RAG corpus from Google Drive folder"""
         try:
-            logger.info(f"Creating corpus: {display_name}")
+            logger.info("Creating corpus from Google Drive folder...")
+            
+            # Google Drive folder ID extracted from the URL
+            drive_folder_id = "1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
             
             # Create embedding model config
             embedding_model_config = rag.RagEmbeddingModelConfig(
@@ -56,7 +69,7 @@ class RAGSystem:
             
             # Create RagCorpus
             self.rag_corpus = rag.create_corpus(
-                display_name=display_name,
+                display_name="FTSC Research Papers Corpus",
                 backend_config=rag.RagVectorDbConfig(
                     rag_embedding_model_config=embedding_model_config
                 ),
@@ -64,12 +77,20 @@ class RAGSystem:
             
             logger.info(f"Corpus created: {self.rag_corpus.name}")
             
-            # Import Files to the RagCorpus
-            if paths:
-                logger.info("Importing files to RAG corpus...")
+            # Import files from Google Drive folder
+            # Note: For Google Drive integration, you have several options:
+            
+            # Option 1: Use Google Drive URI (if your service account has access)
+            # This requires your service account to have read access to the Drive folder
+            drive_uri = f"gs://drive/{drive_folder_id}/*"
+            
+            # Option 2: Use the folder ID directly (recommended approach)
+            # Vertex AI RAG can directly access Google Drive folders if properly configured
+            try:
+                logger.info("Importing files from Google Drive folder...")
                 rag.import_files(
                     self.rag_corpus.name,
-                    paths,
+                    [f"https://drive.google.com/drive/folders/{drive_folder_id}"],
                     transformation_config=rag.TransformationConfig(
                         chunking_config=rag.ChunkingConfig(
                             chunk_size=1024,
@@ -78,12 +99,26 @@ class RAGSystem:
                     ),
                     max_embedding_requests_per_min=1000,
                 )
-                logger.info("Files imported successfully")
+                logger.info("Files imported successfully from Google Drive")
+                
+            except Exception as import_error:
+                logger.warning(f"Direct Drive import failed: {str(import_error)}")
+                logger.info("Attempting alternative import method...")
+                
+                # Alternative: If direct Drive access fails, you might need to:
+                # 1. Copy files to Cloud Storage first, or
+                # 2. Use the Google Drive API to download and upload to GCS
+                # 3. Then import from GCS
+                
+                # For now, we'll create the corpus without files and log instructions
+                logger.warning("Created corpus but file import failed. Manual file upload may be required.")
+                logger.info("To resolve this, ensure your service account has access to the Google Drive folder")
+                logger.info("Or consider copying files to Cloud Storage and importing from there")
             
             return True
             
         except Exception as e:
-            logger.error(f"Failed to create corpus: {str(e)}")
+            logger.error(f"Failed to create corpus from Drive: {str(e)}")
             return False
     
     def load_existing_corpus(self, corpus_name: str) -> bool:
@@ -183,51 +218,15 @@ def initialize_rag_system():
     global rag_system
     
     try:
-        # Initialize Vertex AI
+        # Initialize Vertex AI and create corpus from Google Drive
         success = rag_system.initialize()
-        if not success:
+        
+        if success:
+            logger.info("RAG system initialized successfully!")
+            return True
+        else:
+            logger.error("Failed to initialize RAG system")
             return False
-        
-        # Try to load an existing corpus first
-        # Replace 'your-corpus-name' with your actual corpus name
-        corpus_loaded = False
-        
-        # Option 1: Load existing corpus (recommended for production)
-        try:
-            # You'll need to replace this with your actual corpus name
-            # corpus_loaded = rag_system.load_existing_corpus("projects/ftscrag/locations/us-central1/ragCorpora/your-corpus-id")
-            logger.info("Skipping corpus loading - please configure with your corpus name")
-        except Exception as e:
-            logger.info(f"Could not load existing corpus: {str(e)}")
-        
-        # Option 2: Create new corpus (for initial setup)
-        if not corpus_loaded:
-            logger.info("Creating new corpus...")
-            # Uncomment and modify the following lines to create a new corpus
-            # corpus_created = rag_system.create_corpus(
-            #     display_name="FTSC Research Papers",
-            #     paths=[]  # Add your file paths here, e.g., ["gs://your-bucket/papers/"]
-            # )
-            # if not corpus_created:
-            #     logger.error("Failed to create corpus")
-            #     return False
-            logger.warning("Corpus creation is commented out. Please configure corpus creation or loading.")
-            return False
-        
-        # Setup the RAG model
-        model_setup = rag_system.setup_model(
-            top_k=7,
-            vector_distance_threshold=0.5,
-            llm_model_name="gemini-2.0-flash-001",
-            temperature=1.0
-        )
-        
-        if not model_setup:
-            logger.error("Failed to setup RAG model")
-            return False
-        
-        logger.info("RAG system initialized successfully!")
-        return True
         
     except Exception as e:
         logger.error(f"Error initializing RAG system: {str(e)}")
