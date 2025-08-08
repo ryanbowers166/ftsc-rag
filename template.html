@@ -690,17 +690,17 @@
     <p><strong>RAG does the following:</strong></p>
     
     <p>
-        <strong>1. Corpus Creation:</strong> Upon setup, the files in the database (corpus) are broken into 
-        "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
-        From this point on, the RAG tool works with this vector database of document embeddings, 
-        not the raw files (e.g. PDFs) in the original database.
+        <strong>1. Corpus Creation:</strong> The files in the database ("corpus") are broken into 
+        text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
+        From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
+        raw files (e.g. PDFs) in the original database.
     </p>
     
     <p>
-        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a vector embedding 
-        in the same way as the database files. The retrieval system then searches through embeddings of all 
-        documents in the FTSC database to find the vectors in the corpus that are most similar to the query — 
-        these correspond to the most relevant papers and their specific relevant sections.
+        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a numerical vector embedding 
+        in the same way as the database files. The retrieval system then searches through the embeddings of all 
+        corpus documents to find the document chunks that are most similar to the query (using vector euclidean distance or another metric). 
+        These correspond to the most relevant documents.
     </p>
     
     <p>
@@ -714,8 +714,8 @@
     </p>
     
     <p>
-        Because the context from step 3 is focused on the most relevant content from the database, 
-        the response is tailored to your query and is less likely to be distracted by irrelevant content.
+        Because the context from step 3 only contains the most relevant content from the database, 
+        the LLM's response is tailored to your query and is less likely to be distracted by irrelevant content.
     </p>
     
     <p>
@@ -1021,6 +1021,7 @@
     </script>
 </body>
 </html>
+
 
 
 
