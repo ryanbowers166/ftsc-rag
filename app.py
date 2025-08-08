@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
 from flask_cors import CORS
 import os
 import logging
@@ -767,6 +767,10 @@ def corpus_info():
         logger.error(f"Error getting corpus info: {str(e)}")
         return jsonify({'error': f'Error getting corpus info: {str(e)}'}), 500
 
+@app.route('/static/<path:filename>')
+def serve_static_files(filename):
+    return send_from_directory('static', filename)
+
 if __name__ == '__main__':
     # Initialize RAG system on startup
     logger.info("Starting Flask app and initializing RAG system...")
@@ -783,4 +787,5 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
