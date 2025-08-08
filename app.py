@@ -307,7 +307,7 @@ class RAGSystem:
             logger.warning("Attempting to re-initialize RAG system...")
             return self.initialize()
 
-    def setup_model(self, top_k: int = 10, vector_distance_threshold: float = 0.8,
+    def setup_model(self, top_k: int = 15, vector_distance_threshold: float = 0.8,
                    llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 0.5):
         """Setup the RAG model with retrieval tool using new syntax"""
         try:
@@ -402,7 +402,7 @@ User query: """
             logger.error(f"Error processing query: {str(e)}")
             raise
 
-    def direct_retrieval_query(self, query_text: str, top_k: int = 10, vector_distance_threshold: float = 0.8):
+    def direct_retrieval_query(self, query_text: str, top_k: int = 15, vector_distance_threshold: float = 0.8):
         """Perform direct context retrieval using new syntax"""
         if not self.rag_corpus:
             raise Exception("No corpus available for retrieval")
@@ -787,6 +787,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
