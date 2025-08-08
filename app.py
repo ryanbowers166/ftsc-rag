@@ -1,3 +1,147 @@
+# =============================================================================
+# DIAGNOSTIC CODE - Add this at the very top of app.py before any other imports
+# =============================================================================
+import sys
+import os
+import logging
+
+# Set up basic logging first
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+logger.info("=== STARTING VERTEX AI RAG DIAGNOSTIC ===")
+logger.info(f"Python version: {sys.version}")
+logger.info(f"Python executable: {sys.executable}")
+logger.info(f"Current working directory: {os.getcwd()}")
+
+# Check environment variables
+logger.info("Environment variables:")
+for key in ['GOOGLE_CLOUD_PROJECT', 'DEVSHELL_PROJECT_ID', 'GOOGLE_APPLICATION_CREDENTIALS']:
+    value = os.getenv(key, 'Not set')
+    logger.info(f"  {key}: {value}")
+
+# Try to import and check vertexai
+try:
+    import vertexai
+    logger.info(f"✅ vertexai imported successfully")
+    logger.info(f"   Version: {getattr(vertexai, '__version__', 'Unknown')}")
+    logger.info(f"   Location: {vertexai.__file__}")
+    
+    # Check what's available in vertexai
+    available_attrs = [attr for attr in dir(vertexai) if not attr.startswith('_')]
+    logger.info(f"   Available attributes: {available_attrs}")
+    
+except ImportError as e:
+    logger.error(f"❌ Failed to import vertexai: {e}")
+    sys.exit(1)
+
+# Try to import google-cloud-aiplatform
+try:
+    import google.cloud.aiplatform
+    logger.info(f"✅ google.cloud.aiplatform imported successfully")
+    logger.info(f"   Version: {getattr(google.cloud.aiplatform, '__version__', 'Unknown')}")
+except ImportError as e:
+    logger.error(f"❌ Failed to import google.cloud.aiplatform: {e}")
+
+# Test different RAG import patterns
+rag_import_success = False
+rag_module = None
+
+# Pattern 1: Direct import
+try:
+    from vertexai import rag
+    logger.info("✅ SUCCESS: from vertexai import rag")
+    logger.info(f"   rag module location: {rag.__file__}")
+    rag_available = [x for x in dir(rag) if not x.startswith('_')]
+    logger.info(f"   Available in rag module: {rag_available[:10]}...")  # Show first 10
+    rag_import_success = True
+    rag_module = rag
+except ImportError as e:
+    logger.warning(f"❌ Pattern 1 failed - from vertexai import rag: {e}")
+
+# Pattern 2: Preview import
+if not rag_import_success:
+    try:
+        from vertexai.preview import rag
+        logger.info("✅ SUCCESS: from vertexai.preview import rag")
+        logger.info("   NOTE: RAG is in preview mode")
+        rag_available = [x for x in dir(rag) if not x.startswith('_')]
+        logger.info(f"   Available in rag module: {rag_available[:10]}...")
+        rag_import_success = True
+        rag_module = rag
+    except ImportError as e:
+        logger.warning(f"❌ Pattern 2 failed - from vertexai.preview import rag: {e}")
+
+# Pattern 3: Check if it's in generative_models
+if not rag_import_success:
+    try:
+        from vertexai.generative_models import rag
+        logger.info("✅ SUCCESS: from vertexai.generative_models import rag")
+        rag_import_success = True
+        rag_module = rag
+    except ImportError as e:
+        logger.warning(f"❌ Pattern 3 failed - from vertexai.generative_models import rag: {e}")
+
+# If we found rag, test key classes
+if rag_import_success and rag_module:
+    logger.info("Testing key RAG classes...")
+    key_classes = [
+        'create_corpus', 'import_files', 'RagEmbeddingModelConfig', 
+        'VertexPredictionEndpoint', 'RagVectorDbConfig', 'TransformationConfig',
+        'ChunkingConfig', 'RagRetrievalConfig', 'Filter', 'retrieval_query',
+        'RagResource', 'Retrieval', 'VertexRagStore'
+    ]
+    
+    for class_name in key_classes:
+        if hasattr(rag_module, class_name):
+            logger.info(f"   ✅ {class_name} found")
+        else:
+            logger.warning(f"   ❌ {class_name} NOT found")
+else:
+    logger.error("❌ No RAG import pattern worked!")
+    
+    # Show what IS available in vertexai
+    logger.info("What's actually available in vertexai:")
+    try:
+        import vertexai
+        all_attrs = dir(vertexai)
+        modules = [attr for attr in all_attrs if not attr.startswith('_')]
+        for attr in modules:
+            try:
+                obj = getattr(vertexai, attr)
+                if hasattr(obj, '__file__') or str(type(obj)) == "<class 'module'>":
+                    logger.info(f"   📁 {attr} (module)")
+                else:
+                    logger.info(f"   🔧 {attr} ({type(obj).__name__})")
+            except:
+                logger.info(f"   ❓ {attr}")
+    except Exception as e:
+        logger.error(f"Error inspecting vertexai: {e}")
+
+# Check installed packages
+try:
+    import pkg_resources
+    for pkg_name in ['vertexai', 'google-cloud-aiplatform']:
+        try:
+            dist = pkg_resources.get_distribution(pkg_name)
+            logger.info(f"📦 {pkg_name}: {dist.version} (at {dist.location})")
+        except pkg_resources.DistributionNotFound:
+            logger.warning(f"📦 {pkg_name}: NOT FOUND")
+except ImportError:
+    logger.warning("pkg_resources not available for package inspection")
+
+logger.info("=== END DIAGNOSTIC ===")
+
+# If RAG import failed, we'll need to modify our import strategy
+if not rag_import_success:
+    logger.error("⚠️  RAG import failed - the app will likely fail to start")
+    logger.error("⚠️  Check the logs above to see what's available")
+    # Don't exit here - let the app try to start and show the actual error
+
+# =============================================================================
+# END DIAGNOSTIC CODE
+# =============================================================================
+
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 import os
@@ -535,3 +679,4 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
