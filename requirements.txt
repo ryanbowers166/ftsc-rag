@@ -1,8 +1,7 @@
 flask
 flask-cors
-google-cloud-aiplatform==1.42.1
+google-cloud-aiplatform==1.70.0
 google-api-python-client==2.108.0
 google-auth
-vertexai==1.38.1
+vertexai>=1.70.0
 gunicorn
-
