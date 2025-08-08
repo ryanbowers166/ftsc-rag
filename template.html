@@ -576,6 +576,34 @@
 		background: #2563eb;
 	}
 
+		.instruction-block {
+	    background: #f0f9ff;
+	    border: 1px solid #bae6fd;
+	    border-radius: 15px;
+	    padding: 25px;
+	    margin: 20px 30px;
+	    color: #0c4a6e;
+	    line-height: 1.6;
+	}
+	
+	.instruction-block p {
+	    margin-bottom: 12px;
+	}
+	
+	.instruction-block ol {
+	    margin: 12px 0;
+	    padding-left: 24px;
+	}
+	
+	.instruction-block li {
+	    margin: 8px 0;
+	}
+	
+	.instruction-block strong {
+	    font-weight: 600;
+	    color: #1e293b;
+	}
+
         @media (max-width: 768px) {
             .query-form {
                 flex-direction: column;
@@ -633,6 +661,17 @@
                 <p>Search the FTSC paper database using retrieval-augmented generation (RAG)</p>
             </div>
         </div>
+
+		<div class="instruction-block">
+		    <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
+		    <p>You can use this tool to search the FTSC paper database for sources about a specific topic.</p>
+		    <p><strong>Guidelines for using the tool:</strong></p>
+		    <ol>
+		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("Safety mishap response").</li>
+		        <li>The LLM may create fake information ("hallucination"), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
+		        <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
+		    </ol>
+		</div>
 
         <div class="main-content">
             <!-- System Status Section - Hidden from user but code preserved -->
@@ -1021,6 +1060,7 @@
     </script>
 </body>
 </html>
+
 
 
 
