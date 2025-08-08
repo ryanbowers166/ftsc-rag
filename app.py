@@ -205,8 +205,8 @@ class RAGSystem:
             logger.error(f"Failed to load corpus: {str(e)}")
             return False
     
-    def setup_model(self, top_k: int = 3, vector_distance_threshold: float = 0.5, 
-                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 1.0):
+    def setup_model(self, top_k: int = 10, vector_distance_threshold: float = 0.4, 
+                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 0.5):
         """Setup the RAG model with retrieval tool using new syntax"""
         try:
             if not self.rag_corpus:
@@ -252,7 +252,7 @@ class RAGSystem:
             logger.error(f"Failed to setup model: {str(e)}")
             return False
     
-    def direct_retrieval_query(self, query_text: str, top_k: int = 3, vector_distance_threshold: float = 0.5):
+    def direct_retrieval_query(self, query_text: str, top_k: int = 10, vector_distance_threshold: float = 0.4):
         """Perform direct context retrieval using new syntax"""
         if not self.rag_corpus:
             raise Exception("No corpus available for retrieval")
@@ -469,8 +469,8 @@ def direct_retrieval():
             return jsonify({'error': 'No data received'}), 400
             
         query_text = data.get('query', '').strip()
-        top_k = data.get('top_k', 3)
-        vector_distance_threshold = data.get('vector_distance_threshold', 0.5)
+        top_k = data.get('top_k', 10)
+        vector_distance_threshold = data.get('vector_distance_threshold', 0.4)
         
         if not query_text:
             return jsonify({'error': 'Query cannot be empty'}), 400
@@ -599,6 +599,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
