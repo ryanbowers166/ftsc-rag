@@ -668,7 +668,7 @@
 		    <p><strong>Guidelines for using the tool:</strong></p>
 		    <ol>
 		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
-		        <li>The LLM may create fake information ("hallucination"), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
+		        <li>The LLM may create fake information (hallucinate), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
 		        <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
 		    </ol>
 		</div>
@@ -705,8 +705,8 @@
                     <div class="example-item" onclick="setQuery('What do I need to know about autonomous vehicle flight testing?')">
                         What do I need to know about autonomous vehicle flight testing?
                     </div>
-                    <div class="example-item" onclick="setQuery('Are there lessons learned from flutter testing incidents?')">
-                        Are there lessons learned from flutter testing incidents?
+                    <div class="example-item" onclick="setQuery('What are some lessons learned from flutter testing incidents?')">
+                        What are some lessons learned from flutter testing incidents?
                     </div>
                 </div>
             </div>
@@ -729,7 +729,7 @@
     <p><strong>RAG does the following:</strong></p>
     
     <p>
-        <strong>1. Corpus Creation:</strong> The files in the database ("corpus") are broken into 
+        <strong>1. Corpus Creation:</strong> The files in the database are broken into 
         text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
         From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
         raw files (e.g. PDFs) in the original database.
@@ -1067,6 +1067,7 @@
     </script>
 </body>
 </html>
+
 
 
 
