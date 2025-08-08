@@ -149,7 +149,7 @@ import logging
 from typing import List, Tuple, Optional
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
-from vertexai import rag
+from vertexai.preview import rag
 from google.cloud import aiplatform
 import json
 import tempfile
@@ -233,7 +233,7 @@ class RAGSystem:
             drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
             
             # Configure embedding model using new syntax
-            embedding_model_config = rag.RagEmbeddingModelConfig(
+            embedding_model_config = rag.EmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
@@ -281,7 +281,7 @@ class RAGSystem:
             logger.info(f"Creating corpus: {display_name}")
             
             # Configure embedding model using new syntax
-            embedding_model_config = rag.RagEmbeddingModelConfig(
+            embedding_model_config = rag.EmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
@@ -679,4 +679,5 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
