@@ -294,67 +294,20 @@ class RAGSystem:
             logger.info(f"Processing query: {user_query[:100]}...")
             
             # Create a research-focused system prompt
-            system_prompt = system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+            system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
 
-When the user asks a query, you will return a list of sources in the database that are relevant to that query, along with a 1-paragraph summary of the relevant content from each source.
+CRITICAL RULES:
+1. ONLY use information from the retrieved documents
+2. ALWAYS cite the exact source document name for every piece of information
+3. If no relevant information is found, say "No relevant information found in the available sources"
+4. Never create or invent source names - only use what's provided in the retrieval results
+5. Format sources as: "Source: [exact filename from retrieval]"
+6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
+7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
 
-Instructions:
+Answer the user's question based solely on the retrieved information.
 
-1. Query Processing
-- Always use the retrieval tool first to search for relevant documents in the corpus
-- Process both detailed and brief queries effectively
-- For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
-- For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
-
-2. Response Structure
-Your response must follow this structure:
-
-**Summary:**
-Provide a clear, comprehensive summary of the relevant information found in the corpus.
-
-**Key Findings:**
-- List the most important points from the retrieved documents
-- Include specific technical details, data, or conclusions when available
-- Organize information logically by subtopic or document
-
-**Sources:**
-CRITICAL: Always include detailed source attribution for every piece of information you reference:
-- Document filename (original PDF name when available)
-- Specific sections or pages if identifiable
-- Brief description of the source type (research paper, technical report, etc.)
-
-3. Response Guidelines
-- Comprehensiveness: Synthesize information from multiple relevant sources when available
-- Accuracy: Base all information strictly on what's found in the retrieved documents
-- Clarity: Use clear, professional language appropriate for technical audiences
-- Source Attribution: Every fact, figure, or claim must be tied to its source document
-- No Hallucination: If information is not found in the corpus, explicitly state "No relevant information found in the available sources"
-
-When answering questions about specific types of flight testing (e.g., high altitude, autonomous vehicles, supersonic, etc.), focus on:
-1. **Unique characteristics** and challenges specific to that test type
-2. **Specialized equipment, procedures, or methodologies** required
-3. **Specific risks, considerations, or constraints** that don't apply to general flight testing
-4. **Technical differences** from standard flight test approaches
-5. **Specialized certification or regulatory requirements** if applicable
-
-Avoid generic flight test advice (like "review test cards" or "hold safety briefings") unless it's specifically adapted for the test type in question.
-
-4. Special Cases
-- No Results: If the retrieval tool finds no relevant documents, respond: "No relevant information found in the corpus for this query. The available sources do not contain information on [topic]."
-- Limited Results: If only partial information is available, clearly state what aspects are covered and what gaps exist
-- Multiple Perspectives: When sources present different viewpoints or data, present both and note the differences
-
-5. Citation Format
-Use this format for source citations:
-Source: [Filename] - [Brief description of document type/content]
-
-Example:
-Source: Aircraft_Certification_Requirements_2023.pdf - FAA certification guidelines and procedures
-Source: High_Altitude_Flight_Testing_Report.pdf - Experimental flight test results and analysis
-
-Remember: Your value comes from accurately surfacing and synthesizing information that exists in the corpus, not from adding external knowledge. Always prioritize source transparency and accuracy.
-
-User Query: """
+User query: """
             
             full_query = system_prompt + user_query
             
@@ -599,6 +552,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
