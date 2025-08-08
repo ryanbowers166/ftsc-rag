@@ -368,7 +368,7 @@ class RAGSystem:
 
 CRITICAL RULES:
 1. ONLY use information from the retrieved documents
-2. ALWAYS cite the exact source document name for every piece of information
+2. ALWAYS cite the exact source document name for every piece of information. If you pull multiple pieces of information from the same source, you can just cite the source once.
 3. If no relevant information is found, say "No relevant information found in the available sources"
 4. Never create or invent source names - only use what's provided in the retrieval results
 5. Format sources as: "Source: [exact filename from retrieval]"
@@ -787,6 +787,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
