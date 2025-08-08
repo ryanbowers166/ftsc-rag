@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify, render_template_string, send_from_directory
 from flask_cors import CORS
 import os
 import logging
@@ -10,6 +10,12 @@ from google.cloud import aiplatform
 import json
 import tempfile
 
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from google.auth import default
+import re
+from urllib.parse import quote
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -17,6 +23,108 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+class GoogleDriveHelper:
+    def __init__(self, folder_id="1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"):
+        self.folder_id = folder_id
+        self.service = None
+        self.file_cache = {}
+        
+    def authenticate(self):
+        """Authenticate with Google Drive API"""
+        try:
+            # Use default credentials (works in Cloud Shell/Cloud Run)
+            credentials, project = default()
+            self.service = build('drive', 'v3', credentials=credentials)
+            return True
+        except Exception as e:
+            logger.error(f"Failed to authenticate with Google Drive: {str(e)}")
+            return False
+    
+    def get_folder_files(self):
+        """Get all files from the specified folder"""
+        if not self.service:
+            if not self.authenticate():
+                return {}
+                
+        try:
+            # Query for files in the specific folder
+            query = f"'{self.folder_id}' in parents and trashed=false"
+            
+            results = self.service.files().list(
+                q=query,
+                fields="files(id, name, mimeType, webViewLink, webContentLink)"
+            ).execute()
+            
+            files = results.get('files', [])
+            
+            # Create a mapping of filename to file info
+            file_mapping = {}
+            for file in files:
+                # Store both the exact filename and a normalized version for matching
+                filename = file['name']
+                file_mapping[filename] = {
+                    'id': file['id'],
+                    'name': filename,
+                    'download_link': file.get('webContentLink', ''),
+                    'view_link': file.get('webViewLink', ''),
+                    'mime_type': file.get('mimeType', '')
+                }
+                
+                # Also store without extension for partial matching
+                name_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
+                if name_without_ext not in file_mapping:
+                    file_mapping[name_without_ext] = file_mapping[filename]
+            
+            self.file_cache = file_mapping
+            logger.info(f"Cached {len(file_mapping)} files from Google Drive")
+            return file_mapping
+            
+        except Exception as e:
+            logger.error(f"Error getting folder files: {str(e)}")
+            return {}
+    
+    def find_file_links(self, text):
+        """Find PDF filenames in text and return their download links"""
+        if not self.file_cache:
+            self.get_folder_files()
+        
+        # Patterns to match various ways PDFs might be referenced
+        patterns = [
+            r'Source:\s*([^.\n]+\.pdf)',  # "Source: filename.pdf"
+            r'([A-Za-z0-9_\-\s]+\.pdf)',   # Any text ending in .pdf
+            r'"([^"]+\.pdf)"',             # Quoted PDF filenames
+            r'\[([^\]]+\.pdf)\]',          # Bracketed PDF filenames
+        ]
+        
+        found_files = []
+        
+        for pattern in patterns:
+            matches = re.finditer(pattern, text, re.IGNORECASE)
+            for match in matches:
+                filename = match.group(1).strip()
+                
+                # Try exact match first
+                if filename in self.file_cache:
+                    found_files.append(self.file_cache[filename])
+                    continue
+                
+                # Try partial matching (without extension, case insensitive)
+                filename_lower = filename.lower()
+                for cached_name, file_info in self.file_cache.items():
+                    if (cached_name.lower() == filename_lower or 
+                        cached_name.lower().startswith(filename_lower.rsplit('.', 1)[0])):
+                        found_files.append(file_info)
+                        break
+        
+        # Remove duplicates
+        unique_files = []
+        seen_ids = set()
+        for file_info in found_files:
+            if file_info['id'] not in seen_ids:
+                unique_files.append(file_info)
+                seen_ids.add(file_info['id'])
+        
+        return unique_files
 
 class RAGSystem:
     def __init__(self):
@@ -27,6 +135,7 @@ class RAGSystem:
         self.PROJECT_ID = "ftscrag"
         self.LOCATION = "us-central1"
         self.CORPUS_DISPLAY_NAME = "FTSC Research Papers Corpus"  # Consistent corpus name
+        self.drive_helper = GoogleDriveHelper()
 
     def setup_authentication(self):
         """Setup Google Cloud authentication"""
@@ -149,7 +258,7 @@ class RAGSystem:
                 transformation_config=rag.TransformationConfig(
                     chunking_config=rag.ChunkingConfig(
                         chunk_size=512,
-                        chunk_overlap=100,
+                        chunk_overlap=150,
                     ),
                 ),
                 max_embedding_requests_per_min=1000,  # Optional
@@ -198,7 +307,7 @@ class RAGSystem:
             logger.warning("Attempting to re-initialize RAG system...")
             return self.initialize()
 
-    def setup_model(self, top_k: int = 10, vector_distance_threshold: float = 0.4,
+    def setup_model(self, top_k: int = 15, vector_distance_threshold: float = 0.8,
                    llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 0.5):
         """Setup the RAG model with retrieval tool using new syntax"""
         try:
@@ -245,7 +354,7 @@ class RAGSystem:
             logger.error(f"Failed to setup model: {str(e)}")
             return False
 
-    def query(self, user_query: str) -> str:
+    def query_with_sources(self, user_query: str) -> str:
         """Process a query using the RAG system with new syntax"""
         # Health check before processing query
         if not self.health_check():
@@ -274,6 +383,17 @@ User query: """
 
             # Generate response using the RAG model with new syntax
             response = self.rag_model.generate_content(full_query)
+            response_text = response.text
+
+            # Find source files in the response
+            source_files = self.drive_helper.find_file_links(response_text)
+
+            logger.info(f"Query processed successfully with {len(source_files)} source files found")
+            
+            return {
+                'response': response_text,
+                'sources': source_files
+            }
 
             logger.info("Query processed successfully")
             return response.text
@@ -282,7 +402,7 @@ User query: """
             logger.error(f"Error processing query: {str(e)}")
             raise
 
-    def direct_retrieval_query(self, query_text: str, top_k: int = 10, vector_distance_threshold: float = 0.4):
+    def direct_retrieval_query(self, query_text: str, top_k: int = 15, vector_distance_threshold: float = 0.8):
         """Perform direct context retrieval using new syntax"""
         if not self.rag_corpus:
             raise Exception("No corpus available for retrieval")
@@ -338,6 +458,8 @@ def initialize_rag_system():
         logger.error(f"Error initializing RAG system: {str(e)}")
         return False
 
+
+
 # HTML template loading function
 def load_template():
     """Load the HTML template"""
@@ -373,9 +495,11 @@ def status():
     })
 
 
+
+# Update your query endpoint
 @app.route('/query', methods=['POST'])
 def query():
-    """Process a research query with auto-recovery"""
+    """Process a research query with auto-recovery and source links"""
     global rag_system
 
     logger.info(f"Query endpoint called. Initialized: {rag_system.initialized}")
@@ -395,11 +519,10 @@ def query():
             logger.error("Empty query received")
             return jsonify({'error': 'Query cannot be empty'}), 400
 
-        # Process the query using RAG system (health check is done inside query method)
-        response_text = rag_system.query(user_query)
+        # Process the query using RAG system with sources
+        result = rag_system.query_with_sources(user_query)
 
-        result = {'response': response_text}
-        logger.info(f"Returning result with {len(response_text)} characters")
+        logger.info(f"Returning result with {len(result['response'])} characters and {len(result['sources'])} sources")
         return jsonify(result)
 
     except Exception as e:
@@ -468,6 +591,46 @@ def test():
         'has_corpus': rag_system.rag_corpus is not None,
         'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
     })
+
+
+@app.route('/refresh-files', methods=['POST'])
+def refresh_files():
+    """Refresh the Google Drive file cache"""
+    try:
+        files = rag_system.drive_helper.get_folder_files()
+        return jsonify({
+            'success': True,
+            'message': f'Refreshed cache with {len(files)} files',
+            'file_count': len(files)
+        })
+    except Exception as e:
+        logger.error(f"Error refreshing files: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Add endpoint to test file detection
+@app.route('/test-file-detection', methods=['POST'])
+def test_file_detection():
+    """Test file detection in a sample text"""
+    try:
+        data = request.get_json()
+        test_text = data.get('text', '')
+        
+        if not test_text:
+            return jsonify({'error': 'No text provided'}), 400
+            
+        found_files = rag_system.drive_helper.find_file_links(test_text)
+        
+        return jsonify({
+            'found_files': found_files,
+            'count': len(found_files)
+        })
+        
+    except Exception as e:
+        logger.error(f"Error in file detection test: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 # #
 # # @app.route('/create-corpus', methods=['POST'])
@@ -604,12 +767,17 @@ def corpus_info():
         logger.error(f"Error getting corpus info: {str(e)}")
         return jsonify({'error': f'Error getting corpus info: {str(e)}'}), 500
 
+@app.route('/static/<path:filename>')
+def serve_static_files(filename):
+    return send_from_directory('static', filename)
+
 if __name__ == '__main__':
     # Initialize RAG system on startup
     logger.info("Starting Flask app and initializing RAG system...")
 
     # Try to initialize, but don't fail if it doesn't work initially
     try:
+        drive_helper = GoogleDriveHelper()
         initialize_rag_system()
     except Exception as e:
         logger.error(f"Initial RAG system initialization failed: {str(e)}")
@@ -617,4 +785,9 @@ if __name__ == '__main__':
 
     # Run the app
     port = int(os.environ.get('PORT', 8080))
+
     app.run(host='0.0.0.0', port=port, debug=False)
+
+
+
+
