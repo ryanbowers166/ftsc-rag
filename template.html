@@ -667,7 +667,7 @@
 		    <p>You can use this tool to search the FTSC paper database for sources about a specific topic.</p>
 		    <p><strong>Guidelines for using the tool:</strong></p>
 		    <ol>
-		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("Safety mishap response").</li>
+		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
 		        <li>The LLM may create fake information ("hallucination"), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
 		        <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
 		    </ol>
@@ -1057,9 +1057,17 @@
             
             xhr.send(JSON.stringify({query: query}));
         };
+		// Add this after the existing queryForm.onsubmit function
+		document.getElementById('query').addEventListener('keydown', function(e) {
+	    	if (e.key === 'Enter' && !e.shiftKey) {
+	        	e.preventDefault();
+	        	document.getElementById('queryForm').dispatchEvent(new Event('submit'));
+	    		}
+		});
     </script>
 </body>
 </html>
+
 
 
 
