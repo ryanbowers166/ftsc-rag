@@ -528,6 +528,55 @@
             margin: 10px 0;
         }
 
+        .info-block {
+		background: #f1f5f9;
+		border-top: 2px solid #e2e8f0;
+		padding: 30px;
+		text-align: left;
+		font-size: 1em;
+		color: #334155;
+		max-width: 1200px;  /* match .container width */
+		margin: 30px auto;  /* center and add spacing */
+		border-radius: 20px; /* optional for consistency */
+	}
+
+	.info-block h2 {
+		font-size: 1.5em;
+		margin-bottom: 15px;
+		color: #1e293b;
+	}
+
+	.info-block p {
+		margin-bottom: 1em; /* spacing between paragraphs */
+	}
+
+	.info-block pre {
+		background-color: #f4f4f4;
+		padding: 12px;
+		border-radius: 6px;
+		overflow-x: auto;
+		font-size: 0.9em;
+		white-space: pre-wrap;   /* allow wrapping */
+		word-wrap: break-word;   /* break long words */
+		display: none;           /* hidden by default for toggle */
+	}
+
+	.info-block .toggle-btn {
+		display: inline-block;
+		background: #3b82f6;
+		color: white;
+		padding: 6px 12px;
+		margin-bottom: 10px;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 0.9em;
+		border: none;
+	}
+
+	.info-block .toggle-btn:hover {
+		background: #2563eb;
+	}
+
         @media (max-width: 768px) {
             .query-form {
                 flex-direction: column;
@@ -625,6 +674,74 @@
             </div>
         </div>
     </div>
+
+    <div class="info-block" style="line-height: 1.6;">
+    <h2>How does this tool work?</h2>
+    
+    <p>
+        This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>, 
+        which uses a large language model (LLM) connected to a database of information (a "corpus").
+    </p>
+    
+    <p>
+        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or 
+        use case without the need for retraining, which would be expensive and infeasible for small-scale use.
+    </p>
+    
+    <p><strong>RAG does the following:</strong></p>
+    
+    <p>
+        <strong>1. Corpus Creation:</strong> Upon setup, the files in the database (corpus) are broken into 
+        "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
+        From this point on, the RAG tool works with this vector database of document embeddings, 
+        not the raw files (e.g. PDFs) in the original database.
+    </p>
+    
+    <p>
+        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a vector embedding 
+        in the same way as the database files. The retrieval system then searches through embeddings of all 
+        documents in the FTSC database to find the vectors in the corpus that are most similar to the query — 
+        these correspond to the most relevant papers and their specific relevant sections.
+    </p>
+    
+    <p>
+        <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined 
+        with your original question to create a comprehensive context.
+    </p>
+    
+    <p>
+        <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant 
+        of Gemini) uses the combined context from step 3 to generate a response to your query.
+    </p>
+    
+    <p>
+        Because the context from step 3 is focused on the most relevant content from the database, 
+        the response is tailored to your query and is less likely to be distracted by irrelevant content.
+    </p>
+    
+    <p>
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt 
+        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is 
+        allowed and not allowed to say in response to your query. In our case, we use this system prompt:
+    </p>
+    
+    <pre><code>
+		You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+
+        CRITICAL RULES:
+        1. ONLY use information from the retrieved documents
+        2. ALWAYS cite the exact source document name for every piece of information
+        3. If no relevant information is found, say "No relevant information found in the available sources"
+        4. Never create or invent source names - only use what's provided in the retrieval results
+        5. Format sources as: "Source: [exact filename from retrieval]"
+        6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
+        7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
+        
+        Answer the user's question based solely on the retrieved information.
+        
+        User query: 
+    </code></pre>
+</div>
 
     <script>
         // Initialize markdown parser
@@ -905,5 +1022,6 @@
     </script>
 </body>
 </html>
+
 
 
