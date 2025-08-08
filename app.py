@@ -12,6 +12,7 @@ from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
 from google.cloud import aiplatform
 import json
 import tempfile
+from vertexai.rag import VertexPredictionEndpoint
 
 # Configure logging first
 logging.basicConfig(level=logging.INFO)
@@ -184,7 +185,7 @@ class RAGSystem:
             
             # Configure embedding model using new syntax
             embedding_model_config = rag.EmbeddingModelConfig(
-                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
+                vertex_prediction_endpoint=VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
@@ -232,7 +233,7 @@ class RAGSystem:
             
             # Configure embedding model using new syntax
             embedding_model_config = rag.EmbeddingModelConfig(
-                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
+                vertex_prediction_endpoint=VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
@@ -629,6 +630,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
