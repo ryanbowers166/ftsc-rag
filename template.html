@@ -7,157 +7,441 @@
     <!-- Add markdown-it library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
         }
-        textarea {
-            width: 100%;
-            height: 100px;
-            margin: 10px 0;
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
-        button {
-            padding: 10px 20px;
-            background: #007bff;
+
+        .header {
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .status-section {
+            margin-bottom: 30px;
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .status-section h3 {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .status-healthy {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .status-loading {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .init-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
             border: none;
-            border-radius: 4px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            margin: 5px;
+            transition: transform 0.2s;
         }
-        button:disabled {
-            background: #6c757d;
+
+        .init-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .init-btn:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
         }
-        button.init-btn {
-            background: #28a745;
+
+        .status-btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
         }
-        button.init-btn:disabled {
-            background: #6c757d;
+
+        .status-btn:hover {
+            transform: translateY(-2px);
         }
-        .response {
-            margin: 20px 0;
+
+        .query-section {
+            margin-bottom: 30px;
+        }
+
+        .query-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .query-label {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .query-input {
+            padding: 15px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            transition: border-color 0.3s;
+        }
+
+        .query-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .submit-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+            align-self: flex-start;
+        }
+
+        .submit-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .example-queries {
+            background: #f0f9ff;
+            border-radius: 15px;
             padding: 20px;
-            background: #f8f9fa;
-            border-left: 4px solid #007bff;
-            line-height: 1.6;
+            margin-top: 20px;
+            border: 1px solid #bae6fd;
         }
+
+        .example-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #0c4a6e;
+            margin-bottom: 15px;
+        }
+
+        .example-item {
+            background: white;
+            padding: 12px 16px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid #e0f2fe;
+            font-size: 14px;
+        }
+
+        .example-item:hover {
+            background: #f0f9ff;
+            transform: translateX(4px);
+        }
+
+        .response-section {
+            background: #f8fafc;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .response-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .response-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .response-content {
+            line-height: 1.6;
+            color: #334155;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
+
         /* Markdown-specific styling */
-        .response h1, .response h2, .response h3, .response h4, .response h5, .response h6 {
+        .response-content h1, .response-content h2, .response-content h3, .response-content h4, .response-content h5, .response-content h6 {
             margin-top: 20px;
             margin-bottom: 10px;
-            color: #333;
+            color: #1e293b;
         }
-        .response h1 { border-bottom: 2px solid #007bff; padding-bottom: 5px; }
-        .response h2 { border-bottom: 1px solid #dee2e6; padding-bottom: 3px; }
-        .response p {
-            margin: 10px 0;
+        .response-content h1 {
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 8px;
+            font-size: 1.8em;
         }
-        .response ul, .response ol {
-            margin: 10px 0;
-            padding-left: 30px;
+        .response-content h2 {
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
+            font-size: 1.4em;
         }
-        .response li {
-            margin: 5px 0;
+        .response-content h3 {
+            font-size: 1.2em;
         }
-        .response blockquote {
-            margin: 15px 0;
-            padding: 10px 15px;
-            background: #e9ecef;
-            border-left: 4px solid #6c757d;
+        .response-content p {
+            margin: 12px 0;
+        }
+        .response-content ul, .response-content ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+        .response-content li {
+            margin: 6px 0;
+        }
+        .response-content blockquote {
+            margin: 16px 0;
+            padding: 12px 16px;
+            background: #f1f5f9;
+            border-left: 4px solid #64748b;
             font-style: italic;
+            border-radius: 4px;
         }
-        .response code {
-            background: #e9ecef;
-            padding: 2px 4px;
-            border-radius: 3px;
-            font-family: 'Courier New', monospace;
+        .response-content code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
         }
-        .response pre {
-            background: #f1f3f4;
-            padding: 15px;
-            border-radius: 5px;
+        .response-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 8px;
             overflow-x: auto;
-            margin: 15px 0;
+            margin: 16px 0;
         }
-        .response pre code {
+        .response-content pre code {
             background: none;
             padding: 0;
+            color: inherit;
         }
-        .response strong {
-            font-weight: bold;
-            color: #333;
+        .response-content strong {
+            font-weight: 600;
+            color: #1e293b;
         }
-        .response em {
+        .response-content em {
             font-style: italic;
         }
-        .response table {
+        .response-content table {
             border-collapse: collapse;
             width: 100%;
-            margin: 15px 0;
+            margin: 16px 0;
         }
-        .response th, .response td {
-            border: 1px solid #dee2e6;
-            padding: 8px 12px;
+        .response-content th, .response-content td {
+            border: 1px solid #e2e8f0;
+            padding: 10px 14px;
             text-align: left;
         }
-        .response th {
-            background: #e9ecef;
-            font-weight: bold;
+        .response-content th {
+            background: #f8fafc;
+            font-weight: 600;
         }
-        .response a {
-            color: #007bff;
+        .response-content a {
+            color: #4f46e5;
             text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s;
         }
-        .response a:hover {
-            text-decoration: underline;
+        .response-content a:hover {
+            border-bottom-color: #4f46e5;
         }
-        .error {
-            background: #dc3545;
-            color: white;
+
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
             padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #fecaca;
             margin: 10px 0;
         }
-        .success {
-            background: #28a745;
-            color: white;
+
+        .success-message {
+            background: #dcfce7;
+            color: #166534;
             padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #bbf7d0;
             margin: 10px 0;
         }
-        .status-section {
-            margin: 20px 0;
-            padding: 15px;
-            border: 1px solid #dee2e6;
-            border-radius: 4px;
-            background: #f8f9fa;
-        }
-        .button-group {
-            margin: 15px 0;
+
+        @media (max-width: 768px) {
+            .query-form {
+                flex-direction: column;
+            }
+
+            .header h1 {
+                font-size: 2em;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .submit-btn {
+                align-self: stretch;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>RAG Research Assistant</h1>
-    
-    <div class="status-section">
-        <h3>System Status</h3>
-        <div id="statusDisplay">Checking system status...</div>
-        <div class="button-group">
-            <button id="initButton" class="init-btn" onclick="initializeRAG()">Initialize RAG System</button>
-            <button onclick="checkStatus()">Check Status</button>
+    <div class="container">
+        <div class="header">
+            <h1>RAG Research Assistant</h1>
+            <p>Ask questions about your document collection</p>
+        </div>
+
+        <div class="main-content">
+            <div class="status-section">
+                <h3>System Status</h3>
+                <div id="statusDisplay" class="status-indicator status-loading">
+                    <div class="loading-spinner"></div>
+                    Checking system status...
+                </div>
+                <div class="button-group">
+                    <button id="initButton" class="init-btn" onclick="initializeRAG()">Initialize RAG System</button>
+                    <button onclick="checkStatus()" class="status-btn">Check Status</button>
+                </div>
+            </div>
+
+            <div class="query-section">
+                <form id="queryForm">
+                    <label for="query" class="query-label">Enter your search question:</label>
+                    <textarea id="query" class="query-input" placeholder="Enter your query here..."></textarea>
+                    <button type="submit" id="submitButton" class="submit-btn">Submit Query</button>
+                </form>
+
+                <div class="example-queries">
+                    <div class="example-title">💡 Example Queries:</div>
+                    <div class="example-item" onclick="setQuery('What are the main topics covered in the documents?')">
+                        What are the main topics covered in the documents?
+                    </div>
+                    <div class="example-item" onclick="setQuery('Can you summarize the key findings from recent research?')">
+                        Can you summarize the key findings from recent research?
+                    </div>
+                    <div class="example-item" onclick="setQuery('What methodologies are commonly used in this field?')">
+                        What methodologies are commonly used in this field?
+                    </div>
+                </div>
+            </div>
+
+            <div id="results"></div>
         </div>
     </div>
-    
-    <form id="queryForm">
-        <label for="query">Enter your search question:</label>
-        <textarea id="query" placeholder="Enter your query here..."></textarea>
-        <button type="submit" id="submitButton">Submit Query</button>
-    </div>
-    
-    <div id="results"></div>
-    
+
     <script>
         // Initialize markdown parser
         const md = window.markdownit({
@@ -175,7 +459,7 @@
         function checkStatus() {
             var xhr = new XMLHttpRequest();
             xhr.open('GET', '/status', true);
-            
+
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     try {
@@ -183,116 +467,164 @@
                         var statusDiv = document.getElementById('statusDisplay');
                         var initButton = document.getElementById('initButton');
                         var submitButton = document.getElementById('submitButton');
-                        
+
                         if (data.initialized) {
-                            statusDiv.innerHTML = '<div class="success">RAG system is initialized and ready!</div>';
+                            statusDiv.innerHTML = '✅ RAG system is initialized and ready!';
+                            statusDiv.className = 'status-indicator status-healthy';
                             initButton.textContent = 'Re-initialize RAG System';
                             initButton.disabled = false;
                             submitButton.disabled = false;
                         } else {
-                            statusDiv.innerHTML = '<div class="error">RAG system is not initialized</div>';
+                            statusDiv.innerHTML = '❌ RAG system is not initialized';
+                            statusDiv.className = 'status-indicator status-error';
                             initButton.textContent = 'Initialize RAG System';
                             initButton.disabled = false;
                             submitButton.disabled = true;
                         }
                     } catch (e) {
-                        document.getElementById('statusDisplay').innerHTML = '<div class="error">Error checking status: ' + e.message + '</div>';
+                        document.getElementById('statusDisplay').innerHTML = '❌ Error checking status: ' + e.message;
+                        document.getElementById('statusDisplay').className = 'status-indicator status-error';
                     }
                 } else {
-                    document.getElementById('statusDisplay').innerHTML = '<div class="error">Error checking status: HTTP ' + xhr.status + '</div>';
+                    document.getElementById('statusDisplay').innerHTML = '❌ Error checking status: HTTP ' + xhr.status;
+                    document.getElementById('statusDisplay').className = 'status-indicator status-error';
                 }
             };
-            
+
             xhr.onerror = function() {
-                document.getElementById('statusDisplay').innerHTML = '<div class="error">Network error while checking status</div>';
+                document.getElementById('statusDisplay').innerHTML = '❌ Network error while checking status';
+                document.getElementById('statusDisplay').className = 'status-indicator status-error';
             };
-            
+
             xhr.send();
         }
 
         function initializeRAG() {
             var initButton = document.getElementById('initButton');
             var statusDiv = document.getElementById('statusDisplay');
-            
+
             initButton.disabled = true;
-            initButton.textContent = 'Initializing...';
-            statusDiv.innerHTML = '<div>Initializing RAG system, please wait...</div>';
-            
+            initButton.innerHTML = '<div class="loading-spinner"></div>Initializing...';
+            statusDiv.innerHTML = '<div class="loading-spinner"></div>Initializing RAG system, please wait...';
+            statusDiv.className = 'status-indicator status-loading';
+
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/initialize', true);
             xhr.setRequestHeader('Content-Type', 'application/json');
-            
+
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     try {
                         var data = JSON.parse(xhr.responseText);
                         if (data.success) {
-                            statusDiv.innerHTML = '<div class="success">' + data.message + '</div>';
+                            statusDiv.innerHTML = '✅ ' + data.message;
+                            statusDiv.className = 'status-indicator status-healthy';
                             initButton.textContent = 'Re-initialize RAG System';
                             document.getElementById('submitButton').disabled = false;
                         } else {
-                            statusDiv.innerHTML = '<div class="error">Initialization failed: ' + (data.message || 'Unknown error') + '</div>';
+                            statusDiv.innerHTML = '❌ Initialization failed: ' + (data.message || 'Unknown error');
+                            statusDiv.className = 'status-indicator status-error';
                             initButton.textContent = 'Initialize RAG System';
                         }
                     } catch (e) {
-                        statusDiv.innerHTML = '<div class="error">Error parsing response: ' + e.message + '</div>';
+                        statusDiv.innerHTML = '❌ Error parsing response: ' + e.message;
+                        statusDiv.className = 'status-indicator status-error';
                         initButton.textContent = 'Initialize RAG System';
                     }
                 } else {
-                    statusDiv.innerHTML = '<div class="error">HTTP Error: ' + xhr.status + '</div>';
+                    statusDiv.innerHTML = '❌ HTTP Error: ' + xhr.status;
+                    statusDiv.className = 'status-indicator status-error';
                     initButton.textContent = 'Initialize RAG System';
                 }
                 initButton.disabled = false;
             };
-            
+
             xhr.onerror = function() {
-                statusDiv.innerHTML = '<div class="error">Network error during initialization</div>';
+                statusDiv.innerHTML = '❌ Network error during initialization';
+                statusDiv.className = 'status-indicator status-error';
                 initButton.textContent = 'Initialize RAG System';
                 initButton.disabled = false;
             };
-            
+
             xhr.send();
+        }
+
+        function setQuery(query) {
+            document.getElementById('query').value = query;
+            document.getElementById('query').focus();
         }
 
         document.getElementById('queryForm').onsubmit = function(e) {
             e.preventDefault();
-            
+
             var query = document.getElementById('query').value;
             if (!query.trim()) {
-                document.getElementById('results').innerHTML = '<div class="error">Please enter a question</div>';
+                document.getElementById('results').innerHTML = '<div class="error-message">Please enter a question</div>';
                 return;
             }
-            
-            document.getElementById('results').innerHTML = '<div>Processing...</div>';
-            
+
+            // Show loading state
+            var submitButton = document.getElementById('submitButton');
+            submitButton.disabled = true;
+            submitButton.innerHTML = '<div class="loading-spinner"></div>Processing...';
+
+            // Create response section
+            var responseSection = document.createElement('div');
+            responseSection.className = 'response-section';
+            responseSection.innerHTML = `
+                <div class="response-header">
+                    <div class="response-title">📄 Search Results</div>
+                </div>
+                <div class="response-content">
+                    <div class="loading-spinner"></div> Processing your query...
+                </div>
+            `;
+
+            document.getElementById('results').innerHTML = '';
+            document.getElementById('results').appendChild(responseSection);
+
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/query', true);
             xhr.setRequestHeader('Content-Type', 'application/json');
-            
+
             xhr.onload = function() {
                 if (xhr.status === 200) {
                     try {
                         var data = JSON.parse(xhr.responseText);
+                        var responseContent = responseSection.querySelector('.response-content');
+
                         if (data.error) {
-                            document.getElementById('results').innerHTML = '<div class="error">' + data.error + '</div>';
+                            responseContent.innerHTML = data.error;
+                            responseContent.className = 'response-content error-message';
                         } else if (data.response) {
-                            var responseDiv = document.createElement('div');
-                            responseDiv.className = 'response';
                             // Convert markdown to HTML
-                            responseDiv.innerHTML = md.render(data.response);
-                            document.getElementById('results').innerHTML = '';
-                            document.getElementById('results').appendChild(responseDiv);
+                            responseContent.innerHTML = md.render(data.response);
+                            responseContent.className = 'response-content';
                         }
                     } catch (parseError) {
-                        document.getElementById('results').innerHTML = '<div class="error">Parse error: ' + parseError.message + '</div>';
+                        var responseContent = responseSection.querySelector('.response-content');
+                        responseContent.innerHTML = 'Parse error: ' + parseError.message;
+                        responseContent.className = 'response-content error-message';
                     }
                 } else {
-                    document.getElementById('results').innerHTML = '<div class="error">HTTP Error: ' + xhr.status + '</div>';
+                    var responseContent = responseSection.querySelector('.response-content');
+                    responseContent.innerHTML = 'HTTP Error: ' + xhr.status;
+                    responseContent.className = 'response-content error-message';
                 }
+
+                // Reset button
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Submit Query';
             };
-            
+
             xhr.onerror = function() {
-                document.getElementById('results').innerHTML = '<div class="error">Network error occurred</div>';
+                var responseContent = responseSection.querySelector('.response-content');
+                responseContent.innerHTML = 'Network error occurred';
+                responseContent.className = 'response-content error-message';
+
+                // Reset button
+                submitButton.disabled = false;
+                submitButton.innerHTML = 'Submit Query';
             };
             
             xhr.send(JSON.stringify({query: query}));
