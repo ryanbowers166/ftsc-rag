@@ -1,7 +1,3 @@
-
-# =============================================================================
-# RAG IMPORT COMPATIBILITY LAYER - Add this right after your basic imports
-# =============================================================================
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
 import os
@@ -9,101 +5,10 @@ import logging
 from typing import List, Tuple, Optional
 import vertexai
 from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
+from vertexai import rag
 from google.cloud import aiplatform
 import json
 import tempfile
-from vertexai.rag import VertexPredictionEndpoint
-
-# Configure logging first
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Try different import paths for RAG
-rag = None
-rag_import_success = False
-
-# Pattern 1: Try direct import (official way)
-try:
-    from vertexai import rag
-    logger.info("✅ SUCCESS: Imported RAG from vertexai (official path)")
-    rag_import_success = True
-except ImportError as e:
-    logger.warning(f"❌ Failed to import from vertexai: {e}")
-
-# Pattern 2: Try preview import (fallback)
-if not rag_import_success:
-    try:
-        from vertexai.preview import rag
-        logger.info("✅ SUCCESS: Imported RAG from vertexai.preview (fallback path)")
-        rag_import_success = True
-    except ImportError as e:
-        logger.warning(f"❌ Failed to import from vertexai.preview: {e}")
-
-# Pattern 3: Try using aiplatform directly (alternative approach)
-if not rag_import_success:
-    try:
-        from google.cloud.aiplatform import rag
-        logger.info("✅ SUCCESS: Imported RAG from google.cloud.aiplatform (alternative path)")
-        rag_import_success = True
-    except ImportError as e:
-        logger.warning(f"❌ Failed to import from google.cloud.aiplatform: {e}")
-
-# If all imports failed, create a fallback that will show clear error messages
-if not rag_import_success:
-    logger.error("❌ All RAG import attempts failed!")
-    
-    # Create a mock rag module that will give helpful error messages
-    class MockRAG:
-        def __getattr__(self, name):
-            raise ImportError(f"""
-            RAG module could not be imported. This might be because:
-            1. You need to update vertexai: pip install --upgrade vertexai google-cloud-aiplatform
-            2. The RAG API might not be available in your region
-            3. You might need to enable the RAG API in your project
-            
-            Attempted to access: {name}
-            Please check your installation and try again.
-            """)
-    
-    rag = MockRAG()
-    logger.error("Created mock RAG module - the app will show clear error messages")
-
-# Verify key RAG components are available
-if rag_import_success:
-    logger.info("Testing key RAG components...")
-    key_components = [
-        'create_corpus', 'import_files', 'RagEmbeddingModelConfig', 
-        'VertexPredictionEndpoint', 'RagVectorDbConfig', 'TransformationConfig',
-        'ChunkingConfig', 'RagRetrievalConfig', 'Filter', 'retrieval_query',
-        'RagResource', 'Retrieval', 'VertexRagStore'
-    ]
-    
-    missing_components = []
-    for component in key_components:
-        if hasattr(rag, component):
-            logger.info(f"   ✅ {component}")
-        else:
-            logger.warning(f"   ❌ {component} NOT FOUND")
-            missing_components.append(component)
-    
-    if missing_components:
-        logger.warning(f"Missing RAG components: {missing_components}")
-        logger.warning("Some functionality may not work correctly")
-
-logger.info("RAG import compatibility layer setup complete")
-
-
-#from flask import Flask, request, jsonify, render_template_string
-#from flask_cors import CORS
-#import os
-#import logging
-#from typing import List, Tuple, Optional
-#import vertexai
-#from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
-#from vertexai.preview import rag
-#from google.cloud import aiplatform
-#import json
-#import tempfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -185,7 +90,7 @@ class RAGSystem:
             
             # Configure embedding model using new syntax
             embedding_model_config = rag.EmbeddingModelConfig(
-                vertex_prediction_endpoint=VertexPredictionEndpoint(
+                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
@@ -233,7 +138,7 @@ class RAGSystem:
             
             # Configure embedding model using new syntax
             embedding_model_config = rag.EmbeddingModelConfig(
-                vertex_prediction_endpoint=VertexPredictionEndpoint(
+                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
@@ -630,6 +535,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
