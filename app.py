@@ -544,6 +544,21 @@ def load_corpus():
             'message': f'Error loading corpus: {str(e)}'
         })
 
+@app.route('/test-corpus', methods=['GET'])
+def test_corpus():
+    """Test if corpus has documents"""
+    try:
+        if rag_system.rag_corpus:
+            # Try to list files in corpus (if this method exists)
+            return jsonify({
+                'corpus_name': rag_system.rag_corpus.name,
+                'status': 'Corpus exists'
+            })
+        else:
+            return jsonify({'error': 'No corpus found'})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 if __name__ == '__main__':
     # Initialize RAG system on startup
     logger.info("Starting Flask app and initializing RAG system...")
@@ -552,6 +567,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
