@@ -995,7 +995,7 @@
             responseSection.className = 'response-section';
             responseSection.innerHTML = `
                 <div class="response-header">
-                    <div class="response-title">📄 Summary</div>
+                    <div class="response-title">📄 Search Results</div>
                 </div>
                 <div class="response-content">
                     <div class="loading-spinner"></div> Processing your query...
@@ -1019,16 +1019,15 @@
                             responseContent.innerHTML = data.error;
                             responseContent.className = 'response-content error-message';
                         } else if (data.response) {
-						    // NEW: Display sources if available (before response)
-						    if (data.sources && data.sources.length > 0) {
-						        var sourcesHtml = displaySources(data.sources);
-						        responseSection.insertAdjacentHTML('beforebegin', sourcesHtml);
-						    }
-						    
-						    // Convert markdown to HTML
-						    responseContent.innerHTML = md.render(data.response);
-						    responseContent.className = 'response-content';
-						}
+                            // Convert markdown to HTML
+                            responseContent.innerHTML = md.render(data.response);
+                            responseContent.className = 'response-content';
+                            
+                            // NEW: Display sources if available
+                            if (data.sources && data.sources.length > 0) {
+                                var sourcesHtml = displaySources(data.sources);
+                                responseSection.insertAdjacentHTML('afterend', sourcesHtml);
+                            }
                         }
                     } catch (parseError) {
                         var responseContent = responseSection.querySelector('.response-content');
@@ -1068,7 +1067,6 @@
     </script>
 </body>
 </html>
-
 
 
 
