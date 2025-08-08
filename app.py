@@ -10,6 +10,21 @@ from google.cloud import aiplatform
 import json
 import tempfile
 
+try:
+    print(f"Google Cloud: {google.cloud.__version__}")
+except:
+    print("Google Cloud: version not available")
+
+try:
+    print(f"Vertex AI: {vertexai.__version__}")
+except:
+    print("Vertex AI: version not available")
+
+try:
+    print(f"AI Platform: {aiplatform.__version__}")
+except:
+    print("AI Platform: version not available")
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -535,6 +550,7 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
