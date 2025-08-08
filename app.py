@@ -258,7 +258,7 @@ class RAGSystem:
                 transformation_config=rag.TransformationConfig(
                     chunking_config=rag.ChunkingConfig(
                         chunk_size=512,
-                        chunk_overlap=100,
+                        chunk_overlap=150,
                     ),
                 ),
                 max_embedding_requests_per_min=1000,  # Optional
@@ -783,3 +783,4 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
