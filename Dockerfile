@@ -6,6 +6,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PORT=8080
 
 # Install system dependencies
+RUN pip install --upgrade pip
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
@@ -35,3 +36,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
 # Start the application
 
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
+
