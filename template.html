@@ -176,6 +176,8 @@
             font-family: inherit;
             resize: vertical;
             min-height: 120px;
+            width: 100%; /* Add this line */
+            max-width: 100%; /* Add this line for safety */
             transition: border-color 0.3s;
         }
 
@@ -400,8 +402,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>RAG Research Assistant</h1>
-            <p>Ask questions about your document collection</p>
+            <h1>FTSC Database Search Tool</h1>
+            <p>Search the FTSC paper database using retrieval-augmented generation</p>
         </div>
 
         <div class="main-content">
@@ -424,6 +426,8 @@
                     <button type="submit" id="submitButton" class="submit-btn">Submit Query</button>
                 </form>
 
+                <div id="results"></div>
+
                 <div class="example-queries">
                     <div class="example-title">💡 Example Queries:</div>
                     <div class="example-item" onclick="setQuery('What are the main topics covered in the documents?')">
@@ -438,7 +442,7 @@
                 </div>
             </div>
 
-            <div id="results"></div>
+
         </div>
     </div>
 
