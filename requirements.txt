@@ -3,5 +3,5 @@ flask-cors
 google-cloud-aiplatform==1.107.0
 google-api-python-client
 google-auth
-vertexai
 gunicorn
+
