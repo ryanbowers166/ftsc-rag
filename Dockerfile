@@ -1,5 +1,5 @@
 # Dockerfile
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -33,4 +33,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:$PORT/health || exit 1
 
 # Start the application
+
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 app:app
