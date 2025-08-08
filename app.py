@@ -22,6 +22,7 @@ class RAGSystem:
     def __init__(self):
         self.rag_model = None
         self.rag_corpus = None
+        self.rag_retrieval_tool = None
         self.initialized = False
         self.PROJECT_ID = "ftscrag"
         self.LOCATION = "us-central1"
@@ -36,10 +37,11 @@ class RAGSystem:
             project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('DEVSHELL_PROJECT_ID')
             if project_id:
                 logger.info(f"Found project ID: {project_id}")
+                self.PROJECT_ID = project_id  # Use the environment project ID
                 return True
             
-            # If no project ID found, still try to proceed
-            logger.info("No project ID environment variable found, but proceeding with default credentials")
+            # If no project ID found, still try to proceed with default
+            logger.info("No project ID environment variable found, using default project ID")
             return True
             
         except Exception as e:
@@ -54,7 +56,7 @@ class RAGSystem:
                 return False
             
             logger.info("Initializing Vertex AI...")
-            # Initialize Vertex AI
+            # Initialize Vertex AI once per session
             vertexai.init(project=self.PROJECT_ID, location=self.LOCATION)
             aiplatform.init(project=self.PROJECT_ID, location=self.LOCATION)
             
@@ -64,6 +66,7 @@ class RAGSystem:
                 # Setup the model after creating corpus
                 model_success = self.setup_model()
                 if model_success:
+                    self.initialized = True
                     logger.info("RAG system initialized successfully!")
                     return True
                 else:
@@ -78,21 +81,21 @@ class RAGSystem:
             return False
     
     def create_corpus_from_drive(self) -> bool:
-        """Create RAG corpus from Google Drive folder"""
+        """Create RAG corpus from Google Drive folder using new syntax"""
         try:
             logger.info("Creating corpus from Google Drive folder...")
             
             # Google Drive folder URL
             drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
             
-            # Create embedding model config
+            # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
             
-            # Create RagCorpus
+            # Create RagCorpus using new syntax
             self.rag_corpus = rag.create_corpus(
                 display_name="FTSC Research Papers Corpus",
                 backend_config=rag.RagVectorDbConfig(
@@ -102,21 +105,21 @@ class RAGSystem:
             
             logger.info(f"Corpus created: {self.rag_corpus.name}")
             
-            # Import files from Google Drive folder
-            # Using the exact method structure you specified
+            # Import files from Google Drive folder using new syntax
             logger.info("Importing files from Google Drive folder...")
-            paths = [drive_folder_url]  # This is list containing the google drive URL
+            paths = [drive_folder_url]
             
             rag.import_files(
                 self.rag_corpus.name,
-                paths,  # This is list containing the google drive URL
+                paths,
+                # Optional transformation config
                 transformation_config=rag.TransformationConfig(
                     chunking_config=rag.ChunkingConfig(
-                        chunk_size=1024,
-                        chunk_overlap=150,
+                        chunk_size=512,
+                        chunk_overlap=100,
                     ),
                 ),
-                max_embedding_requests_per_min=1000,
+                max_embedding_requests_per_min=1000,  # Optional
             )
             
             logger.info("Files imported successfully from Google Drive")
@@ -124,49 +127,46 @@ class RAGSystem:
             
         except Exception as e:
             logger.error(f"Failed to create corpus from Drive: {str(e)}")
-            # Log more detailed error information
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Error details: Make sure the Google Drive folder is accessible to your service account")
-            logger.error(f"The folder should be shared with your service account email or made publicly accessible")
             return False
     
     def create_corpus(self, display_name: str, paths: List[str]) -> bool:
-        """Create RAG corpus and import files using the exact method structure"""
+        """Create RAG corpus and import files using new syntax"""
         try:
             logger.info(f"Creating corpus: {display_name}")
             
-            # Create embedding model config
+            # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
                     publisher_model="publishers/google/models/text-embedding-005"
                 )
             )
             
-            # Create RagCorpus
-            rag_corpus = rag.create_corpus(
+            # Create RagCorpus using new syntax
+            self.rag_corpus = rag.create_corpus(
                 display_name=display_name,
                 backend_config=rag.RagVectorDbConfig(
                     rag_embedding_model_config=embedding_model_config
                 ),
             )
             
-            # Store the corpus reference
-            self.rag_corpus = rag_corpus
-            logger.info(f"Corpus created: {rag_corpus.name}")
+            logger.info(f"Corpus created: {self.rag_corpus.name}")
             
-            # Import files
+            # Import files using new syntax
             if paths:
                 logger.info("Importing files to RAG corpus...")
                 rag.import_files(
-                    rag_corpus.name,
-                    paths,  # This is list containing the google drive URL
+                    self.rag_corpus.name,
+                    paths,
+                    # Optional transformation config
                     transformation_config=rag.TransformationConfig(
                         chunking_config=rag.ChunkingConfig(
-                            chunk_size=1024,
-                            chunk_overlap=150,
+                            chunk_size=512,
+                            chunk_overlap=100,
                         ),
                     ),
-                    max_embedding_requests_per_min=1000,
+                    max_embedding_requests_per_min=1000,  # Optional
                 )
                 logger.info("Files imported successfully")
             
@@ -175,59 +175,6 @@ class RAGSystem:
         except Exception as e:
             logger.error(f"Failed to create corpus: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
-            return False
-        """Load an existing RAG corpus"""
-        try:
-            logger.info(f"Loading existing corpus: {corpus_name}")
-            # Get the corpus by name
-            self.rag_corpus = rag.get_corpus(name=corpus_name)
-            logger.info(f"Loaded corpus: {self.rag_corpus.name}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to load corpus: {str(e)}")
-            return False
-    
-    def setup_model(self, top_k: int = 7, vector_distance_threshold: float = 0.5, 
-                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 1.0):
-        """Setup the RAG model with retrieval tool"""
-        try:
-            if not self.rag_corpus:
-                logger.error("No corpus available. Create or load a corpus first.")
-                return False
-                
-            logger.info("Setting up RAG model...")
-            
-            # Direct context retrieval
-            rag_retrieval_config = rag.RagRetrievalConfig(
-                top_k=top_k,
-                filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),
-            )
-            
-            # Create RAG retrieval tool
-            rag_retrieval_tool = Tool.from_retrieval(
-                retrieval=rag.Retrieval(
-                    source=rag.VertexRagStore(
-                        rag_resources=[rag.RagResource(rag_corpus=self.rag_corpus.name)],
-                        rag_retrieval_config=rag_retrieval_config,
-                    ),
-                )
-            )
-            
-            # Create a model instance
-            generation_config = GenerationConfig(temperature=temperature)
-            self.rag_model = GenerativeModel(
-                model_name=llm_model_name, 
-                tools=[rag_retrieval_tool],
-                generation_config=generation_config
-            )
-            
-            self.initialized = True
-            logger.info("RAG model setup completed successfully!")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to setup model: {str(e)}")
             return False
     
     def load_existing_corpus(self, corpus_name: str) -> bool:
@@ -243,8 +190,88 @@ class RAGSystem:
             logger.error(f"Failed to load corpus: {str(e)}")
             return False
     
+    def setup_model(self, top_k: int = 3, vector_distance_threshold: float = 0.5, 
+                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 1.0):
+        """Setup the RAG model with retrieval tool using new syntax"""
+        try:
+            if not self.rag_corpus:
+                logger.error("No corpus available. Create or load a corpus first.")
+                return False
+                
+            logger.info("Setting up RAG model with new syntax...")
+            
+            # Direct context retrieval configuration
+            rag_retrieval_config = rag.RagRetrievalConfig(
+                top_k=top_k,  # Optional
+                filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),  # Optional
+            )
+            
+            # Create a RAG retrieval tool using new syntax
+            self.rag_retrieval_tool = Tool.from_retrieval(
+                retrieval=rag.Retrieval(
+                    source=rag.VertexRagStore(
+                        rag_resources=[
+                            rag.RagResource(
+                                rag_corpus=self.rag_corpus.name,  # Currently only 1 corpus is allowed
+                                # Optional: supply IDs from `rag.list_files()`.
+                                # rag_file_ids=["rag-file-1", "rag-file-2", ...],
+                            )
+                        ],
+                        rag_retrieval_config=rag_retrieval_config,
+                    ),
+                )
+            )
+            
+            # Create a Gemini model instance
+            generation_config = GenerationConfig(temperature=temperature)
+            self.rag_model = GenerativeModel(
+                model_name=llm_model_name, 
+                tools=[self.rag_retrieval_tool],
+                generation_config=generation_config
+            )
+            
+            logger.info("RAG model setup completed successfully!")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to setup model: {str(e)}")
+            return False
+    
+    def direct_retrieval_query(self, query_text: str, top_k: int = 3, vector_distance_threshold: float = 0.5):
+        """Perform direct context retrieval using new syntax"""
+        if not self.rag_corpus:
+            raise Exception("No corpus available for retrieval")
+        
+        try:
+            logger.info(f"Performing direct retrieval for: {query_text[:100]}...")
+            
+            # Direct context retrieval using new syntax
+            rag_retrieval_config = rag.RagRetrievalConfig(
+                top_k=top_k,  # Optional
+                filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),  # Optional
+            )
+            
+            response = rag.retrieval_query(
+                rag_resources=[
+                    rag.RagResource(
+                        rag_corpus=self.rag_corpus.name,
+                        # Optional: supply IDs from `rag.list_files()`.
+                        # rag_file_ids=["rag-file-1", "rag-file-2", ...],
+                    )
+                ],
+                text=query_text,
+                rag_retrieval_config=rag_retrieval_config,
+            )
+            
+            logger.info("Direct retrieval completed successfully")
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error in direct retrieval: {str(e)}")
+            raise
+    
     def query(self, user_query: str) -> str:
-        """Process a query using the RAG system"""
+        """Process a query using the RAG system with new syntax"""
         if not self.initialized or not self.rag_model:
             raise Exception("RAG system not initialized")
         
@@ -267,7 +294,7 @@ class RAGSystem:
             
             full_query = system_prompt + user_query
             
-            # Generate response using the RAG model
+            # Generate response using the RAG model with new syntax
             response = self.rag_model.generate_content(full_query)
             
             logger.info("Query processed successfully")
@@ -280,14 +307,11 @@ class RAGSystem:
 # Initialize the RAG system
 rag_system = RAGSystem()
 
-
-
 def initialize_rag_system():
     """Initialize the RAG system with current Vertex AI API"""
     global rag_system
     
     try:
-        
         # Initialize Vertex AI and create corpus from Google Drive
         success = rag_system.initialize()
         
@@ -326,7 +350,8 @@ def status():
     return jsonify({
         'initialized': rag_system.initialized,
         'has_corpus': rag_system.rag_corpus is not None,
-        'has_model': rag_system.rag_model is not None
+        'has_model': rag_system.rag_model is not None,
+        'has_retrieval_tool': rag_system.rag_retrieval_tool is not None
     })
 
 @app.route('/query', methods=['POST'])
@@ -365,6 +390,39 @@ def query():
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}", exc_info=True)
         return jsonify({'error': f'Error processing query: {str(e)}'}), 500
+
+@app.route('/direct-retrieval', methods=['POST'])
+def direct_retrieval():
+    """Perform direct context retrieval without generation"""
+    global rag_system
+    
+    if not rag_system.rag_corpus:
+        return jsonify({'error': 'No corpus available for retrieval'}), 500
+    
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data received'}), 400
+            
+        query_text = data.get('query', '').strip()
+        top_k = data.get('top_k', 3)
+        vector_distance_threshold = data.get('vector_distance_threshold', 0.5)
+        
+        if not query_text:
+            return jsonify({'error': 'Query cannot be empty'}), 400
+        
+        # Perform direct retrieval
+        retrieval_response = rag_system.direct_retrieval_query(
+            query_text, 
+            top_k=top_k, 
+            vector_distance_threshold=vector_distance_threshold
+        )
+        
+        return jsonify({'retrieval_response': str(retrieval_response)})
+        
+    except Exception as e:
+        logger.error(f"Error in direct retrieval: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Error in direct retrieval: {str(e)}'}), 500
 
 @app.route('/health')
 def health():
@@ -410,6 +468,8 @@ def create_corpus():
         if success:
             # Setup the model after creating corpus
             model_success = rag_system.setup_model()
+            if model_success:
+                rag_system.initialized = True
             return jsonify({
                 'success': model_success,
                 'message': 'Corpus created and model setup completed' if model_success else 'Corpus created but model setup failed',
@@ -447,6 +507,8 @@ def load_corpus():
         if success:
             # Setup the model after loading corpus
             model_success = rag_system.setup_model()
+            if model_success:
+                rag_system.initialized = True
             return jsonify({
                 'success': model_success,
                 'message': 'Corpus loaded and model setup completed' if model_success else 'Corpus loaded but model setup failed',
@@ -473,9 +535,3 @@ if __name__ == '__main__':
     # Run the app
     port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
-
-
-
-
