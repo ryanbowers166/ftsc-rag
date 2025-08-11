@@ -228,7 +228,8 @@ class RAGSystem:
             logger.info("Creating corpus from Google Drive folder...")
 
             # Google Drive folder URL
-            drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
+            #drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
+            drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
 
             # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
@@ -787,6 +788,7 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
+
 
 
 
