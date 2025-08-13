@@ -381,8 +381,9 @@ class RAGSystem:
         # Remove the matched patterns
         cleaned_text = re.sub(pattern, '', text, flags=re.IGNORECASE)
         
-        # Clean up any extra spaces
-        cleaned_text = re.sub(r'\s+', ' ', cleaned_text)
+        # Clean up any extra spaces on the same line, but preserve newlines
+        # This replaces multiple spaces/tabs with single space, but keeps newlines
+        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
         
         # Clean up any double newlines
         cleaned_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_text)
