@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 class GoogleDriveHelper:
-    def __init__(self, folder_id="1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"):
+    def __init__(self, folder_id="1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"):
         self.folder_id = folder_id
         self.service = None
         self.file_cache = {}
@@ -234,7 +234,7 @@ class RAGSystem:
             # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                    publisher_model="publishers/google/models/text-embedding-005"
+                    publisher_model="publishers/google/models/gemini-embedding-001"
                 )
             )
 
@@ -309,7 +309,7 @@ class RAGSystem:
             return self.initialize()
 
     def setup_model(self, top_k: int = 15, vector_distance_threshold: float = 0.8,
-                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 0.5):
+                   llm_model_name: str = "gemini-2.5-flash", temperature: float = 0.5):
         """Setup the RAG model with retrieval tool using new syntax"""
         try:
             if not self.rag_corpus:
@@ -371,6 +371,27 @@ class RAGSystem:
         
         return formatted_history
 
+    def clean_hallucinated_sources(text):
+        """Remove hallucinated generic source citations that don't reference actual files"""
+        # Pattern to match "Source: [topic] Sources" where topic doesn't end in .pdf
+        # This catches patterns like "Source: Flight Test Sources", "Source: Autonomous Vehicle Sources", etc.
+        pattern = r'Source:\s*[^.\n]*Sources(?!\s*\.pdf)'
+        
+        # Replace these patterns with empty string
+        cleaned_text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        
+        # Also clean up any "Source: " followed by text that doesn't contain a file extension
+        # but be more careful to not remove legitimate sources
+        generic_source_pattern = r'Source:\s*(?![^.\n]*\.(?:pdf|doc|docx|txt|xlsx|xls)\b)[^.\n]*(?:Sources?|Documentation|Materials?|References?|Papers?|Studies?)\b[^\n]*'
+        
+        cleaned_text = re.sub(generic_source_pattern, '', cleaned_text, flags=re.IGNORECASE)
+        
+        # Clean up any double newlines or extra whitespace left behind
+        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+        cleaned_text = cleaned_text.strip()
+        
+        return cleaned_text
+    
     def query_with_sources(self, user_query: str, conversation_history: List[dict] = None) -> dict:
         """Process a query using the RAG system with conversation history support"""
         # Health check before processing query
@@ -409,6 +430,8 @@ Answer the user's question based solely on the retrieved information and convers
             # Generate response using the RAG model with new syntax
             response = self.rag_model.generate_content(full_query)
             response_text = response.text
+
+            response_text = clean_hallucinated_sources(response_text)
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
