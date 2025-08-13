@@ -185,6 +185,177 @@
             transform: none;
         }
 
+        /* NEW: Conversation history styles */
+        .conversation-section {
+            margin-bottom: 30px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 15px;
+            background: #f8fafc;
+        }
+
+        .conversation-header {
+            background: #4f46e5;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 15px 15px 0 0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .conversation-title {
+            font-size: 1.2em;
+            font-weight: 600;
+        }
+
+        .clear-chat-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .clear-chat-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .conversation-messages {
+            padding: 20px;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 600;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .user-avatar {
+            background: #3b82f6;
+        }
+
+        .assistant-avatar {
+            background: #10b981;
+        }
+
+        .message-content {
+            flex: 1;
+            background: white;
+            border-radius: 15px;
+            padding: 15px 20px;
+            border: 1px solid #e2e8f0;
+            line-height: 1.6;
+        }
+
+        .message-content h1, .message-content h2, .message-content h3, .message-content h4, .message-content h5, .message-content h6 {
+            margin-top: 15px;
+            margin-bottom: 8px;
+            color: #1e293b;
+        }
+        .message-content h1 {
+            border-bottom: 2px solid #4f46e5;
+            padding-bottom: 5px;
+            font-size: 1.6em;
+        }
+        .message-content h2 {
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 3px;
+            font-size: 1.3em;
+        }
+        .message-content h3 {
+            font-size: 1.1em;
+        }
+        .message-content p {
+            margin: 10px 0;
+        }
+        .message-content ul, .message-content ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .message-content li {
+            margin: 5px 0;
+        }
+        .message-content blockquote {
+            margin: 12px 0;
+            padding: 10px 12px;
+            background: #f1f5f9;
+            border-left: 3px solid #64748b;
+            font-style: italic;
+            border-radius: 3px;
+        }
+        .message-content code {
+            background: #f1f5f9;
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.9em;
+        }
+        .message-content pre {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .message-content pre code {
+            background: none;
+            padding: 0;
+            color: inherit;
+        }
+        .message-content strong {
+            font-weight: 600;
+            color: #1e293b;
+        }
+        .message-content em {
+            font-style: italic;
+        }
+        .message-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12px 0;
+        }
+        .message-content th, .message-content td {
+            border: 1px solid #e2e8f0;
+            padding: 8px 12px;
+            text-align: left;
+        }
+        .message-content th {
+            background: #f8fafc;
+            font-weight: 600;
+        }
+        .message-content a {
+            color: #4f46e5;
+            text-decoration: none;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .message-content a:hover {
+            border-bottom-color: #4f46e5;
+        }
+
         .query-section {
             margin-bottom: 30px;
         }
@@ -422,94 +593,6 @@
             font-weight: 600;
         }
 
-        /* Markdown-specific styling */
-        .response-content h1, .response-content h2, .response-content h3, .response-content h4, .response-content h5, .response-content h6 {
-            margin-top: 20px;
-            margin-bottom: 10px;
-            color: #1e293b;
-        }
-        .response-content h1 {
-            border-bottom: 2px solid #4f46e5;
-            padding-bottom: 8px;
-            font-size: 1.8em;
-        }
-        .response-content h2 {
-            border-bottom: 1px solid #e2e8f0;
-            padding-bottom: 5px;
-            font-size: 1.4em;
-        }
-        .response-content h3 {
-            font-size: 1.2em;
-        }
-        .response-content p {
-            margin: 12px 0;
-        }
-        .response-content ul, .response-content ol {
-            margin: 12px 0;
-            padding-left: 24px;
-        }
-        .response-content li {
-            margin: 6px 0;
-        }
-        .response-content blockquote {
-            margin: 16px 0;
-            padding: 12px 16px;
-            background: #f1f5f9;
-            border-left: 4px solid #64748b;
-            font-style: italic;
-            border-radius: 4px;
-        }
-        .response-content code {
-            background: #f1f5f9;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.9em;
-        }
-        .response-content pre {
-            background: #1e293b;
-            color: #e2e8f0;
-            padding: 16px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 16px 0;
-        }
-        .response-content pre code {
-            background: none;
-            padding: 0;
-            color: inherit;
-        }
-        .response-content strong {
-            font-weight: 600;
-            color: #1e293b;
-        }
-        .response-content em {
-            font-style: italic;
-        }
-        .response-content table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 16px 0;
-        }
-        .response-content th, .response-content td {
-            border: 1px solid #e2e8f0;
-            padding: 10px 14px;
-            text-align: left;
-        }
-        .response-content th {
-            background: #f8fafc;
-            font-weight: 600;
-        }
-        .response-content a {
-            color: #4f46e5;
-            text-decoration: none;
-            border-bottom: 1px solid transparent;
-            transition: border-color 0.2s;
-        }
-        .response-content a:hover {
-            border-bottom-color: #4f46e5;
-        }
-
         .error-message {
             background: #fef2f2;
             color: #dc2626;
@@ -649,6 +732,20 @@
                 flex: 1;
                 justify-content: center;
             }
+
+            .conversation-section {
+                max-height: 400px;
+            }
+
+            .message {
+                gap: 10px;
+            }
+
+            .message-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
         }
     </style>
 </head>
@@ -664,12 +761,13 @@
 
 		<div class="instruction-block">
 		    <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
-		    <p>You can use this tool to search the FTSC paper database for sources about a specific topic.</p>
+		    <p>You can use this tool to search the FTSC paper database for sources about a specific topic and have multi-message conversations.</p>
 		    <p><strong>Guidelines for using the tool:</strong></p>
 		    <ol>
 		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
 		        <li>The LLM may create fake information (hallucinate), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
 		        <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
+		        <li><strong>NEW:</strong> You can now have multi-message conversations. Ask follow-up questions and the system will remember the conversation context.</li>
 		    </ol>
 		</div>
 
@@ -688,11 +786,22 @@
                 </div>
             </div>
 
+            <!-- NEW: Conversation History Section -->
+            <div id="conversationSection" class="conversation-section" style="display: none;">
+                <div class="conversation-header">
+                    <div class="conversation-title">💬 Conversation History</div>
+                    <button onclick="clearConversation()" class="clear-chat-btn">Clear Chat</button>
+                </div>
+                <div id="conversationMessages" class="conversation-messages">
+                    <!-- Messages will be added here dynamically -->
+                </div>
+            </div>
+
             <div class="query-section">
                 <form id="queryForm">
-                    <label for="query" class="query-label"> </label>
-                    <textarea id="query" class="query-input" placeholder="Enter your query here..."></textarea>
-                    <button type="submit" id="submitButton" class="submit-btn">Search</button>
+                    <label for="query" class="query-label">Ask a question or continue the conversation:</label>
+                    <textarea id="query" class="query-input" placeholder="Enter your question here..."></textarea>
+                    <button type="submit" id="submitButton" class="submit-btn">Send Message</button>
                 </form>
 
                 <div id="results"></div>
@@ -707,6 +816,12 @@
                     </div>
                     <div class="example-item" onclick="setQuery('Aircraft certification requirements')">
                         Aircraft certification requirements
+                    </div>
+                    <div class="example-item" onclick="setQuery('Can you tell me more about that?')">
+                        Can you tell me more about that?
+                    </div>
+                    <div class="example-item" onclick="setQuery('What are the safety considerations for this?')">
+                        What are the safety considerations for this?
                     </div>
                 </div>
             </div>
@@ -744,7 +859,7 @@
     
     <p>
         <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined 
-        with your original question to create a comprehensive context.
+        with your original question and conversation history to create a comprehensive context.
     </p>
     
     <p>
@@ -758,27 +873,15 @@
     </p>
     
     <p>
-        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt 
-        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is 
-        allowed and not allowed to say in response to your query. In our case, we use this system prompt:
+        <strong>Multi-message conversations:</strong> This tool now maintains conversation history. Each new message 
+        includes the previous conversation context, allowing for follow-up questions and coherent multi-turn discussions.
     </p>
     
-    <pre><code>
-		You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
-
-        CRITICAL RULES:
-        1. ONLY use information from the retrieved documents
-        2. ALWAYS cite the exact source document name for every piece of information
-        3. If no relevant information is found, say "No relevant information found in the available sources"
-        4. Never create or invent source names - only use what's provided in the retrieval results
-        5. Format sources as: "Source: [exact filename from retrieval]"
-        6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
-        7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
-        
-        Answer the user's question based solely on the retrieved information.
-        
-        User query: 
-    </code></pre>
+    <p>
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt 
+        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is 
+        allowed and not allowed to say in response to your query.
+    </p>
 </div>
 
     <script>
@@ -790,10 +893,118 @@
             typographer: true   // Enable smart quotes and other typographic replacements
         });
 
+        // NEW: Conversation history storage
+        let conversationHistory = [];
+
         // Check status on page load
         window.onload = function() {
             checkStatus();
+            loadConversationHistory();
         };
+
+        // NEW: Load conversation history from localStorage
+        function loadConversationHistory() {
+            try {
+                const saved = localStorage.getItem('ftsc_conversation_history');
+                if (saved) {
+                    conversationHistory = JSON.parse(saved);
+                    displayConversationHistory();
+                }
+            } catch (e) {
+                console.log('No previous conversation history found');
+                conversationHistory = [];
+            }
+        }
+
+        // NEW: Save conversation history to localStorage
+        function saveConversationHistory() {
+            try {
+                localStorage.setItem('ftsc_conversation_history', JSON.stringify(conversationHistory));
+            } catch (e) {
+                console.log('Could not save conversation history');
+            }
+        }
+
+        // NEW: Display conversation history
+        function displayConversationHistory() {
+            const conversationSection = document.getElementById('conversationSection');
+            const messagesContainer = document.getElementById('conversationMessages');
+            
+            if (conversationHistory.length === 0) {
+                conversationSection.style.display = 'none';
+                return;
+            }
+            
+            conversationSection.style.display = 'block';
+            messagesContainer.innerHTML = '';
+            
+            conversationHistory.forEach((item, index) => {
+                // Add user message
+                const userMessage = document.createElement('div');
+                userMessage.className = 'message';
+                userMessage.innerHTML = `
+                    <div class="message-avatar user-avatar">U</div>
+                    <div class="message-content">${escapeHtml(item.query)}</div>
+                `;
+                messagesContainer.appendChild(userMessage);
+                
+                // Add assistant message
+                const assistantMessage = document.createElement('div');
+                assistantMessage.className = 'message';
+                assistantMessage.innerHTML = `
+                    <div class="message-avatar assistant-avatar">A</div>
+                    <div class="message-content">${md.render(item.response)}</div>
+                `;
+                messagesContainer.appendChild(assistantMessage);
+                
+                // Add sources if available
+                if (item.sources && item.sources.length > 0) {
+                    const sourcesDiv = document.createElement('div');
+                    sourcesDiv.innerHTML = displaySources(item.sources);
+                    messagesContainer.appendChild(sourcesDiv);
+                }
+            });
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // NEW: Clear conversation history
+        function clearConversation() {
+            if (confirm('Are you sure you want to clear the conversation history?')) {
+                conversationHistory = [];
+                saveConversationHistory();
+                displayConversationHistory();
+                document.getElementById('results').innerHTML = '';
+            }
+        }
+
+        // NEW: Add message to conversation history
+        function addToConversationHistory(query, response, sources = []) {
+            conversationHistory.push({
+                query: query,
+                response: response,
+                sources: sources,
+                timestamp: new Date().toISOString()
+            });
+            saveConversationHistory();
+            displayConversationHistory();
+        }
+
+        // NEW: Get conversation context for API
+        function getConversationContext() {
+            return conversationHistory.map(item => ({
+                query: item.query,
+                response: item.response
+            }));
+        }
+
+        // NEW: Escape HTML for safety
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
         function checkStatus() {
             var xhr = new XMLHttpRequest();
@@ -975,7 +1186,7 @@
             document.getElementById('query').focus();
         }
 
-        // UPDATED: Query form submission with sources support
+        // UPDATED: Query form submission with conversation history support
         document.getElementById('queryForm').onsubmit = function(e) {
             e.preventDefault();
 
@@ -995,7 +1206,7 @@
             responseSection.className = 'response-section';
             responseSection.innerHTML = `
                 <div class="response-header">
-                    <div class="response-title">📄 Search Results</div>
+                    <div class="response-title">📄 Processing Your Message</div>
                 </div>
                 <div class="response-content">
                     <div class="loading-spinner"></div> Processing your query...
@@ -1023,11 +1234,20 @@
                             responseContent.innerHTML = md.render(data.response);
                             responseContent.className = 'response-content';
                             
+                            // Update response title
+                            responseSection.querySelector('.response-title').textContent = '📄 Latest Response';
+                            
+                            // NEW: Add to conversation history
+                            addToConversationHistory(query, data.response, data.sources || []);
+                            
                             // NEW: Display sources if available
                             if (data.sources && data.sources.length > 0) {
                                 var sourcesHtml = displaySources(data.sources);
                                 responseSection.insertAdjacentHTML('afterend', sourcesHtml);
                             }
+                            
+                            // Clear the input
+                            document.getElementById('query').value = '';
                         }
                     } catch (parseError) {
                         var responseContent = responseSection.querySelector('.response-content');
@@ -1042,7 +1262,7 @@
 
                 // Reset button
                 submitButton.disabled = false;
-                submitButton.innerHTML = 'Submit Query';
+                submitButton.innerHTML = 'Send Message';
             };
 
             xhr.onerror = function() {
@@ -1052,11 +1272,16 @@
 
                 // Reset button
                 submitButton.disabled = false;
-                submitButton.innerHTML = 'Submit Query';
+                submitButton.innerHTML = 'Send Message';
             };
             
-            xhr.send(JSON.stringify({query: query}));
+            // NEW: Include conversation history in the request
+            xhr.send(JSON.stringify({
+                query: query,
+                conversation_history: getConversationContext()
+            }));
         };
+
 		// Add this after the existing queryForm.onsubmit function
 		document.getElementById('query').addEventListener('keydown', function(e) {
 	    	if (e.key === 'Enter' && !e.shiftKey) {
@@ -1067,16 +1292,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
