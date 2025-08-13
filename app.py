@@ -374,15 +374,28 @@ class RAGSystem:
     def clean_hallucinated_sources(self, text):
         """Remove hallucinated generic source citations that don't reference actual files"""
         
-        # Pattern to match "Source: [text without file extension]" at the end of sentences
-        # Matches either until a period, newline, or end of string
-        pattern = r'\s*Source:\s*(?![^\.\n]*\.(?:pdf|doc|docx|txt|xlsx|xls|ppt|pptx)\b)[^\.\n]*(?=[\.\n]|$)'
+        # Pattern to match "Source: [text]" and capture the content after "Source:"
+        # We'll then check if that content contains file extensions
+        def source_replacer(match):
+            source_content = match.group(1).strip()
+            
+            # Check if the source content contains a file extension
+            has_file_extension = re.search(r'\.(?:pdf|doc|docx|txt|xlsx|xls|ppt|pptx)\b', source_content, re.IGNORECASE)
+            
+            if has_file_extension:
+                # Keep this source - it's a real file reference
+                return match.group(0)
+            else:
+                # Remove this source - it's hallucinated
+                return ''
         
-        # Remove the matched patterns
-        cleaned_text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        # Pattern to match "Source: " followed by everything until newline or end of string
+        pattern = r'\s*Source:\s*([^\n]*?)(?=\n|$)'
+        
+        # Apply the replacement function
+        cleaned_text = re.sub(pattern, source_replacer, text, flags=re.IGNORECASE)
         
         # Clean up any extra spaces on the same line, but preserve newlines
-        # This replaces multiple spaces/tabs with single space, but keeps newlines
         cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
         
         # Clean up any double newlines
