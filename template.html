@@ -162,7 +162,6 @@
             transform: translateY(-2px);
         }
 
-        /* NEW: Refresh button for file cache */
         .refresh-btn {
             padding: 12px 24px;
             background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
@@ -185,7 +184,7 @@
             transform: none;
         }
 
-        /* NEW: Conversation history styles */
+        /* Unified Conversation Section */
         .conversation-section {
             margin-bottom: 30px;
             max-height: 600px;
@@ -447,46 +446,17 @@
             transform: translateX(4px);
         }
 
-        .response-section {
-            background: #f8fafc;
-            border-radius: 15px;
-            padding: 25px;
-            margin-top: 20px;
-            border: 1px solid #e2e8f0;
-        }
-
-        .response-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .response-title {
-            font-size: 1.3em;
-            font-weight: 600;
-            color: #1e293b;
-        }
-
-        .response-content {
-            line-height: 1.6;
-            color: #334155;
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-        }
-
-        /* NEW: Sources section styling */
+        /* Sources section styling within messages */
         .sources-section {
             background: #f0f9ff;
             border-radius: 15px;
-            padding: 25px;
-            margin-top: 20px;
+            padding: 20px;
+            margin-top: 15px;
             border: 1px solid #bae6fd;
         }
 
         .sources-title {
-            font-size: 1.3em;
+            font-size: 1.1em;
             font-weight: 600;
             color: #0c4a6e;
             margin-bottom: 15px;
@@ -612,80 +582,80 @@
         }
 
         .info-block {
-		background: #f1f5f9;
-		border-top: 2px solid #e2e8f0;
-		padding: 30px;
-		text-align: left;
-		font-size: 1em;
-		color: #334155;
-		max-width: 1200px;  /* match .container width */
-		margin: 30px auto;  /* center and add spacing */
-		border-radius: 20px; /* optional for consistency */
-	}
+            background: #f1f5f9;
+            border-top: 2px solid #e2e8f0;
+            padding: 30px;
+            text-align: left;
+            font-size: 1em;
+            color: #334155;
+            max-width: 1200px;
+            margin: 30px auto;
+            border-radius: 20px;
+        }
 
-	.info-block h2 {
-		font-size: 1.5em;
-		margin-bottom: 15px;
-		color: #1e293b;
-	}
+        .info-block h2 {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #1e293b;
+        }
 
-	.info-block p {
-		margin-bottom: 1em; /* spacing between paragraphs */
-	}
+        .info-block p {
+            margin-bottom: 1em;
+        }
 
-	.info-block pre {
-		background-color: #f4f4f4;
-		padding: 12px;
-		border-radius: 6px;
-		overflow-x: auto;
-		font-size: 0.9em;
-		white-space: pre-wrap;   /* allow wrapping */
-		word-wrap: break-word;   /* break long words */
-	}
+        .info-block pre {
+            background-color: #f4f4f4;
+            padding: 12px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.9em;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
 
-	.info-block .toggle-btn {
-		display: inline-block;
-		background: #3b82f6;
-		color: white;
-		padding: 6px 12px;
-		margin-bottom: 10px;
-		border-radius: 4px;
-		cursor: pointer;
-		font-size: 0.9em;
-		border: none;
-	}
+        .info-block .toggle-btn {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 6px 12px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            border: none;
+        }
 
-	.info-block .toggle-btn:hover {
-		background: #2563eb;
-	}
+        .info-block .toggle-btn:hover {
+            background: #2563eb;
+        }
 
-		.instruction-block {
-	    background: #f0f9ff;
-	    border: 1px solid #bae6fd;
-	    border-radius: 15px;
-	    padding: 25px;
-	    margin: 20px 30px;
-	    color: #0c4a6e;
-	    line-height: 1.6;
-	}
-	
-	.instruction-block p {
-	    margin-bottom: 12px;
-	}
-	
-	.instruction-block ol {
-	    margin: 12px 0;
-	    padding-left: 24px;
-	}
-	
-	.instruction-block li {
-	    margin: 8px 0;
-	}
-	
-	.instruction-block strong {
-	    font-weight: 600;
-	    color: #1e293b;
-	}
+        .instruction-block {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
+            border-radius: 15px;
+            padding: 25px;
+            margin: 20px 30px;
+            color: #0c4a6e;
+            line-height: 1.6;
+        }
+
+        .instruction-block p {
+            margin-bottom: 12px;
+        }
+
+        .instruction-block ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .instruction-block li {
+            margin: 8px 0;
+        }
+
+        .instruction-block strong {
+            font-weight: 600;
+            color: #1e293b;
+        }
 
         @media (max-width: 768px) {
             .query-form {
@@ -759,17 +729,17 @@
             </div>
         </div>
 
-		<div class="instruction-block">
-		    <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
-		    <p>You can use this tool to search the FTSC paper database for sources about a specific topic and have multi-message conversations.</p>
-		    <p><strong>Guidelines for using the tool:</strong></p>
-		    <ol>
-		        <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
-		        <li>The LLM may create fake information (hallucinate), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
-		        <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
-		        <li><strong>NEW:</strong> You can now have multi-message conversations. Ask follow-up questions and the system will remember the conversation context.</li>
-		    </ol>
-		</div>
+        <div class="instruction-block">
+            <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
+            <p>You can use this tool to search the FTSC paper database for sources about a specific topic and have multi-message conversations.</p>
+            <p><strong>Guidelines for using the tool:</strong></p>
+            <ol>
+                <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
+                <li>The LLM may create fake information (hallucinate), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
+                <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
+                <li><strong>NEW:</strong> You can now have multi-message conversations. Ask follow-up questions and the system will remember the conversation context.</li>
+            </ol>
+        </div>
 
         <div class="main-content">
             <!-- System Status Section - Hidden from user but code preserved -->
@@ -786,10 +756,10 @@
                 </div>
             </div>
 
-            <!-- NEW: Conversation History Section -->
+            <!-- Unified Conversation Section -->
             <div id="conversationSection" class="conversation-section" style="display: none;">
                 <div class="conversation-header">
-                    <div class="conversation-title">💬 Conversation History</div>
+                    <div class="conversation-title">💬 Conversation</div>
                     <button onclick="clearConversation()" class="clear-chat-btn">Clear Chat</button>
                 </div>
                 <div id="conversationMessages" class="conversation-messages">
@@ -799,12 +769,10 @@
 
             <div class="query-section">
                 <form id="queryForm">
-                    <label for="query" class="query-label">Ask a question or continue the conversation:</label>
+                    <label for="query" class="query-label">Ask a question:</label>
                     <textarea id="query" class="query-input" placeholder="Enter your question here..."></textarea>
                     <button type="submit" id="submitButton" class="submit-btn">Send Message</button>
                 </form>
-
-                <div id="results"></div>
 
                 <div class="example-queries">
                     <div class="example-title">💡 Example Queries:</div>
@@ -893,7 +861,7 @@
             typographer: true   // Enable smart quotes and other typographic replacements
         });
 
-        // NEW: Conversation history storage
+        // Conversation history storage
         let conversationHistory = [];
 
         // Check status on page load
@@ -902,7 +870,7 @@
             loadConversationHistory();
         };
 
-        // NEW: Load conversation history from localStorage
+        // Load conversation history from localStorage
         function loadConversationHistory() {
             try {
                 const saved = localStorage.getItem('ftsc_conversation_history');
@@ -916,7 +884,7 @@
             }
         }
 
-        // NEW: Save conversation history to localStorage
+        // Save conversation history to localStorage
         function saveConversationHistory() {
             try {
                 localStorage.setItem('ftsc_conversation_history', JSON.stringify(conversationHistory));
@@ -925,7 +893,7 @@
             }
         }
 
-        // NEW: Display conversation history
+        // Display conversation history
         function displayConversationHistory() {
             const conversationSection = document.getElementById('conversationSection');
             const messagesContainer = document.getElementById('conversationMessages');
@@ -973,17 +941,16 @@
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
-        // NEW: Clear conversation history
+        // Clear conversation history
         function clearConversation() {
             if (confirm('Are you sure you want to clear the conversation history?')) {
                 conversationHistory = [];
                 saveConversationHistory();
                 displayConversationHistory();
-                document.getElementById('results').innerHTML = '';
             }
         }
 
-        // NEW: Add message to conversation history
+        // Add message to conversation history
         function addToConversationHistory(query, response, sources = []) {
             console.log('Adding to conversation history:', {query: query.substring(0, 50), sources: sources.length});
             conversationHistory.push({
@@ -996,7 +963,7 @@
             displayConversationHistory();
         }
 
-        // NEW: Get conversation context for API
+        // Get conversation context for API
         function getConversationContext() {
             return conversationHistory.map(item => ({
                 query: item.query,
@@ -1004,7 +971,7 @@
             }));
         }
 
-        // NEW: Escape HTML for safety
+        // Escape HTML for safety
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
@@ -1104,7 +1071,7 @@
             xhr.send();
         }
 
-        // NEW: Function to refresh Google Drive file cache
+        // Function to refresh Google Drive file cache
         function refreshFiles() {
             var refreshButton = document.getElementById('refreshButton');
             var originalText = refreshButton.textContent;
@@ -1145,14 +1112,14 @@
             xhr.send();
         }
 
-        // NEW: Function to display sources
+        // Function to display sources
         function displaySources(sources) {
             if (!sources || sources.length === 0) {
                 return '';
             }
             
             var sourcesHtml = '<div class="sources-section">';
-            sourcesHtml += '<div class="sources-title">📁 Sources <span class="sources-count">' + sources.length + '</span></div>';
+            sourcesHtml += '<div class="sources-title">🔗 Sources <span class="sources-count">' + sources.length + '</span></div>';
             sourcesHtml += '<div class="sources-list">';
             
             sources.forEach(function(source) {
@@ -1191,13 +1158,13 @@
             document.getElementById('query').focus();
         }
 
-        // UPDATED: Query form submission with conversation history support
+        // Query form submission with conversation history support
         document.getElementById('queryForm').onsubmit = function(e) {
             e.preventDefault();
 
             var query = document.getElementById('query').value;
             if (!query.trim()) {
-                document.getElementById('results').innerHTML = '<div class="error-message">Please enter a question</div>';
+                alert('Please enter a question');
                 return;
             }
 
@@ -1206,20 +1173,11 @@
             submitButton.disabled = true;
             submitButton.innerHTML = '<div class="loading-spinner"></div>Processing...';
 
-            // Create response section
-            var responseSection = document.createElement('div');
-            responseSection.className = 'response-section';
-            responseSection.innerHTML = `
-                <div class="response-header">
-                    <div class="response-title">📄 Processing Your Message</div>
-                </div>
-                <div class="response-content">
-                    <div class="loading-spinner"></div> Processing your query...
-                </div>
-            `;
+            // Add user message to conversation immediately
+            addMessageToConversation('user', query);
 
-            document.getElementById('results').innerHTML = '';
-            document.getElementById('results').appendChild(responseSection);
+            // Add loading message for assistant
+            var loadingId = addMessageToConversation('assistant', '<div class="loading-spinner"></div> Processing your query...');
 
             var xhr = new XMLHttpRequest();
             xhr.open('POST', '/query', true);
@@ -1229,40 +1187,24 @@
                 if (xhr.status === 200) {
                     try {
                         var data = JSON.parse(xhr.responseText);
-                        var responseContent = responseSection.querySelector('.response-content');
 
                         if (data.error) {
-                            responseContent.innerHTML = data.error;
-                            responseContent.className = 'response-content error-message';
+                            updateMessageInConversation(loadingId, 'Error: ' + data.error, []);
                         } else if (data.response) {
-                            // Convert markdown to HTML
-                            responseContent.innerHTML = md.render(data.response);
-                            responseContent.className = 'response-content';
+                            // Update the loading message with the actual response
+                            updateMessageInConversation(loadingId, data.response, data.sources || []);
                             
-                            // Update response title
-                            responseSection.querySelector('.response-title').textContent = '📄 Latest Response';
-                            
-                            // NEW: Add to conversation history
+                            // Add to persistent conversation history
                             addToConversationHistory(query, data.response, data.sources || []);
                             
                             // Clear the input
                             document.getElementById('query').value = '';
-                            
-                            // NEW: Display sources if available for the latest response
-                            if (data.sources && data.sources.length > 0) {
-                                var sourcesHtml = displaySources(data.sources);
-                                responseSection.insertAdjacentHTML('afterend', sourcesHtml);
-                            }
                         }
                     } catch (parseError) {
-                        var responseContent = responseSection.querySelector('.response-content');
-                        responseContent.innerHTML = 'Parse error: ' + parseError.message;
-                        responseContent.className = 'response-content error-message';
+                        updateMessageInConversation(loadingId, 'Parse error: ' + parseError.message, []);
                     }
                 } else {
-                    var responseContent = responseSection.querySelector('.response-content');
-                    responseContent.innerHTML = 'HTTP Error: ' + xhr.status;
-                    responseContent.className = 'response-content error-message';
+                    updateMessageInConversation(loadingId, 'HTTP Error: ' + xhr.status, []);
                 }
 
                 // Reset button
@@ -1271,29 +1213,78 @@
             };
 
             xhr.onerror = function() {
-                var responseContent = responseSection.querySelector('.response-content');
-                responseContent.innerHTML = 'Network error occurred';
-                responseContent.className = 'response-content error-message';
+                updateMessageInConversation(loadingId, 'Network error occurred', []);
 
                 // Reset button
                 submitButton.disabled = false;
                 submitButton.innerHTML = 'Send Message';
             };
             
-            // NEW: Include conversation history in the request
+            // Include conversation history in the request
             xhr.send(JSON.stringify({
                 query: query,
                 conversation_history: getConversationContext()
             }));
         };
 
-		// Add this after the existing queryForm.onsubmit function
-		document.getElementById('query').addEventListener('keydown', function(e) {
-	    	if (e.key === 'Enter' && !e.shiftKey) {
-	        	e.preventDefault();
-	        	document.getElementById('queryForm').dispatchEvent(new Event('submit'));
-	    		}
-		});
+        // Function to add a message to the conversation display
+        function addMessageToConversation(type, content) {
+            const conversationSection = document.getElementById('conversationSection');
+            const messagesContainer = document.getElementById('conversationMessages');
+            
+            // Show conversation section if hidden
+            conversationSection.style.display = 'block';
+            
+            const message = document.createElement('div');
+            message.className = 'message';
+            const messageId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+            message.id = messageId;
+            
+            if (type === 'user') {
+                message.innerHTML = `
+                    <div class="message-avatar user-avatar">U</div>
+                    <div class="message-content">${escapeHtml(content)}</div>
+                `;
+            } else {
+                message.innerHTML = `
+                    <div class="message-avatar assistant-avatar">A</div>
+                    <div class="message-content">${content}</div>
+                `;
+            }
+            
+            messagesContainer.appendChild(message);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            return messageId;
+        }
+
+        // Function to update a message in the conversation display
+        function updateMessageInConversation(messageId, content, sources = []) {
+            const message = document.getElementById(messageId);
+            if (message) {
+                const messageContent = message.querySelector('.message-content');
+                let htmlContent = md.render(content);
+                
+                // Add sources if available
+                if (sources && sources.length > 0) {
+                    htmlContent += displaySources(sources);
+                }
+                
+                messageContent.innerHTML = htmlContent;
+                
+                // Scroll to bottom
+                const messagesContainer = document.getElementById('conversationMessages');
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+        }
+
+        // Add keyboard shortcut for form submission
+        document.getElementById('query').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('queryForm').dispatchEvent(new Event('submit'));
+            }
+        });
     </script>
 </body>
 </html>
