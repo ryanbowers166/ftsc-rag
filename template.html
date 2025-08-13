@@ -939,6 +939,8 @@
             messagesContainer.innerHTML = '';
             
             conversationHistory.forEach((item, index) => {
+                console.log(`Message ${index} has ${item.sources ? item.sources.length : 0} sources`);
+                
                 // Add user message
                 const userMessage = document.createElement('div');
                 userMessage.className = 'message';
@@ -948,21 +950,23 @@
                 `;
                 messagesContainer.appendChild(userMessage);
                 
-                // Add assistant message
+                // Add assistant message with sources
                 const assistantMessage = document.createElement('div');
                 assistantMessage.className = 'message';
-                assistantMessage.innerHTML = `
-                    <div class="message-avatar assistant-avatar">A</div>
-                    <div class="message-content">${md.render(item.response)}</div>
-                `;
-                messagesContainer.appendChild(assistantMessage);
                 
-                // Add sources if available
+                let assistantContent = `
+                    <div class="message-avatar assistant-avatar">A</div>
+                    <div class="message-content">${md.render(item.response)}`;
+                
+                // Add sources inline if available
                 if (item.sources && item.sources.length > 0) {
-                    const sourcesDiv = document.createElement('div');
-                    sourcesDiv.innerHTML = displaySources(item.sources);
-                    messagesContainer.appendChild(sourcesDiv);
+                    console.log('Adding sources to message:', item.sources);
+                    assistantContent += displaySources(item.sources);
                 }
+                
+                assistantContent += `</div>`;
+                assistantMessage.innerHTML = assistantContent;
+                messagesContainer.appendChild(assistantMessage);
             });
             
             // Scroll to bottom
@@ -981,6 +985,7 @@
 
         // NEW: Add message to conversation history
         function addToConversationHistory(query, response, sources = []) {
+            console.log('Adding to conversation history:', {query: query.substring(0, 50), sources: sources.length});
             conversationHistory.push({
                 query: query,
                 response: response,
@@ -1240,14 +1245,14 @@
                             // NEW: Add to conversation history
                             addToConversationHistory(query, data.response, data.sources || []);
                             
-                            // NEW: Display sources if available
+                            // Clear the input
+                            document.getElementById('query').value = '';
+                            
+                            // NEW: Display sources if available for the latest response
                             if (data.sources && data.sources.length > 0) {
                                 var sourcesHtml = displaySources(data.sources);
                                 responseSection.insertAdjacentHTML('afterend', sourcesHtml);
                             }
-                            
-                            // Clear the input
-                            document.getElementById('query').value = '';
                         }
                     } catch (parseError) {
                         var responseContent = responseSection.querySelector('.response-content');
