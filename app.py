@@ -371,7 +371,7 @@ class RAGSystem:
         
         return formatted_history
 
-    def clean_hallucinated_sources(text):
+    def clean_hallucinated_sources(self, text):
         """Remove hallucinated generic source citations that don't reference actual files"""
         # Pattern to match "Source: [topic] Sources" where topic doesn't end in .pdf
         # This catches patterns like "Source: Flight Test Sources", "Source: Autonomous Vehicle Sources", etc.
@@ -431,7 +431,7 @@ Answer the user's question based solely on the retrieved information and convers
             response = self.rag_model.generate_content(full_query)
             response_text = response.text
 
-            response_text = clean_hallucinated_sources(response_text)
+            response_text = self.clean_hallucinated_sources(response_text)
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
