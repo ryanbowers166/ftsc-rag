@@ -24,7 +24,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 class GoogleDriveHelper:
-    def __init__(self, folder_id="1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"):
+    def __init__(self, folder_id="1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"):
         self.folder_id = folder_id
         self.service = None
         self.file_cache = {}
