@@ -431,10 +431,10 @@ Answer the user's question based solely on the retrieved information and convers
             response = self.rag_model.generate_content(full_query)
             response_text = response.text
 
-            response_text = self.clean_hallucinated_sources(response_text)
-
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
+
+            response_text = self.clean_hallucinated_sources(response_text)
 
             logger.info(f"Query processed successfully with {len(source_files)} source files found")
             
