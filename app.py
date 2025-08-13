@@ -373,21 +373,18 @@ class RAGSystem:
 
     def clean_hallucinated_sources(self, text):
         """Remove hallucinated generic source citations that don't reference actual files"""
-        # Pattern to match "Source: [topic] Sources" where topic doesn't end in .pdf
-        # This catches patterns like "Source: Flight Test Sources", "Source: Autonomous Vehicle Sources", etc.
-        pattern = r'Source:\s*[^.\n]*Sources(?!\s*\.pdf)'
         
-        # Replace these patterns with empty string
-        cleaned_text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+        # Primary pattern: Remove "Source: " followed by text that doesn't contain file extensions
+        # This will catch "Source: High Altitude Flight Test", "Source: Flight Test Sources", etc.
+        # but preserve "Source: filename.pdf", "Source: document.docx", etc.
+        main_pattern = r'Source:\s*(?![^\n]*\.(?:pdf|doc|docx|txt|xlsx|xls|ppt|pptx)\b)[^\n]*'
         
-        # Also clean up any "Source: " followed by text that doesn't contain a file extension
-        # but be more careful to not remove legitimate sources
-        generic_source_pattern = r'Source:\s*(?![^.\n]*\.(?:pdf|doc|docx|txt|xlsx|xls)\b)[^.\n]*(?:Sources?|Documentation|Materials?|References?|Papers?|Studies?)\b[^\n]*'
-        
-        cleaned_text = re.sub(generic_source_pattern, '', cleaned_text, flags=re.IGNORECASE)
+        # Remove the matched patterns
+        cleaned_text = re.sub(main_pattern, '', text, flags=re.IGNORECASE)
         
         # Clean up any double newlines or extra whitespace left behind
-        cleaned_text = re.sub(r'\n\s*\n', '\n\n', cleaned_text)
+        cleaned_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_text)
+        cleaned_text = re.sub(r'^\s+|\s+$', '', cleaned_text, flags=re.MULTILINE)
         cleaned_text = cleaned_text.strip()
         
         return cleaned_text
