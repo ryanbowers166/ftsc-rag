@@ -801,26 +801,7 @@
     </style>
 </head>
 <body>
-    <div id="guidelinesOverlay" class="guidelines-overlay">
-        <div class="guidelines-modal">
-            <h2>Guidelines for Use</h2>
-            <div class="guidelines-content">
-                <p><strong>Before using this tool, please understand:</strong></p>
-                <ol>
-                    <li>This tool uses AI that may create fake information (hallucinate) or fabricate sources. <strong>Always verify responses carefully.</strong></li>
-                    <li>You can ask questions in complete sentences or short phrases.</li>
-                    <li>If you get "no relevant information found", try a more detailed query with additional keywords.</li>
-                    <li>You can have multi-message conversations with follow-up questions.</li>
-                    <li>Clear the conversation history when switching topics or when conversations get long to maintain performance.</li>
-                </ol>
-            </div>
-            <div class="agreement-checkbox">
-                <input type="checkbox" id="guidelinesAgree">
-                <label for="guidelinesAgree">I have read and agree to the guidelines</label>
-            </div>
-            <button id="proceedBtn" class="proceed-btn" disabled>Proceed to Tool</button>
-        </div>
-    </div>
+   
 
     <div class="container">
         <div class="header">
@@ -971,32 +952,32 @@
         // Conversation history storage
         let conversationHistory = [];
 
-        // Guidelines agreement handling
-        document.addEventListener('DOMContentLoaded', function() {
-            const overlay = document.getElementById('guidelinesOverlay');
-            const checkbox = document.getElementById('guidelinesAgree');
-            const proceedBtn = document.getElementById('proceedBtn');
+        // // Guidelines agreement handling
+        // document.addEventListener('DOMContentLoaded', function() {
+        //     const overlay = document.getElementById('guidelinesOverlay');
+        //     const checkbox = document.getElementById('guidelinesAgree');
+        //     const proceedBtn = document.getElementById('proceedBtn');
 
-            // Check if user has already agreed
-            const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
-            if (hasAgreed === 'true') {
-                overlay.style.display = 'none';
-            }
+        //     // Check if user has already agreed
+        //     const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
+        //     if (hasAgreed === 'true') {
+        //         overlay.style.display = 'none';
+        //     }
 
-            // Enable/disable proceed button based on checkbox
-            checkbox.addEventListener('change', function() {
-                proceedBtn.disabled = !this.checked;
-            });
+        //     // Enable/disable proceed button based on checkbox
+        //     checkbox.addEventListener('change', function() {
+        //         proceedBtn.disabled = !this.checked;
+        //     });
 
-            // Handle proceed button
-            proceedBtn.addEventListener('click', function() {
-                if (checkbox.checked) {
-                    localStorage.setItem('ftsc_guidelines_agreed', 'true');
-                    overlay.style.display = 'none';
-                    checkStatus(); // Added
-                }
-            });
-        });
+        //     // Handle proceed button
+        //     proceedBtn.addEventListener('click', function() {
+        //         if (checkbox.checked) {
+        //             localStorage.setItem('ftsc_guidelines_agreed', 'true');
+        //             overlay.style.display = 'none';
+        //             checkStatus(); // Added
+        //         }
+        //     });
+        // });
 
         // Check status on page load
         window.onload = function() {
