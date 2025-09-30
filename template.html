@@ -945,7 +945,13 @@
         function clearConversation() {
             if (confirm('Are you sure you want to clear the conversation history?')) {
                 conversationHistory = [];
+                localStorage.removeItem('ftsc_conversation_history');
                 saveConversationHistory();
+
+                // Clear the messages container completely
+                const messagesContainer = document.getElementById('conversationMessages');
+                messagesContainer.innerHTML = '';
+
                 displayConversationHistory();
             }
         }
