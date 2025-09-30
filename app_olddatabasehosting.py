@@ -201,8 +201,8 @@ class RAGSystem:
                 logger.info("Using existing corpus")
                 success = self.load_existing_corpus(existing_corpus_name)
             else:
-                logger.info("Creating new corpus with Vector Search")
-                success = self.create_corpus_with_vector_search()
+                logger.info("Creating new corpus")
+                success = self.create_corpus_from_drive()
 
             if success:
                 # Setup the model after loading/creating corpus
@@ -222,147 +222,59 @@ class RAGSystem:
             logger.error(f"Error initializing RAG system: {str(e)}")
             return False
 
-    def create_corpus_with_vector_search(self) -> bool:
-        """Create RAG corpus using Vertex AI Vector Search instead of RagManagedDb"""
+
+
+    def create_corpus_from_drive(self) -> bool:
+        """Create RAG corpus from Google Drive folder using new syntax"""
         try:
-            logger.info("Creating corpus with Vector Search backend...")
+            logger.info("Creating corpus from Google Drive folder...")
 
             # Google Drive folder URL
+            #drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
             drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
 
-            # Step 1: Create streaming index
-            logger.info("Creating Vector Search index...")
-            index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
-                display_name="ftsc-rag-vector-index",
-                dimensions=768,  # For gemini-embedding-001
-                distance_measure_type="DOT_PRODUCT_DISTANCE",
-                index_update_method="STREAM_UPDATE",
-                description="Vector index for FTSC Research Papers"
-            )
-            logger.info(f"Index created: {index.resource_name}")
-
-            # Step 2: Create index endpoint
-            logger.info("Creating index endpoint...")
-            index_endpoint = aiplatform.MatchingEngineIndexEndpoint.create(
-                display_name="ftsc-rag-index-endpoint",
-                public_endpoint_enabled=True,
-                description="Endpoint for FTSC RAG queries"
-            )
-            logger.info(f"Endpoint created: {index_endpoint.resource_name}")
-
-            # Step 3: Deploy index to endpoint
-            logger.info("Deploying index to endpoint (this may take several minutes)...")
-            index_endpoint.deploy_index(
-                index=index,
-                deployed_index_id="ftsc_deployed_rag_index",
-                min_replica_count=1,
-                max_replica_count=1
-            )
-            logger.info("Index deployed successfully")
-
-            # Step 4: Configure embedding model
+            # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                    publisher_model="publishers/google/models/text-embedding-004"
+                    publisher_model="publishers/google/models/gemini-embedding-001"
                 )
             )
 
-            # Step 5: Configure Vector Search as the vector DB
-            vector_db = rag.VertexVectorSearch(
-                index=index.resource_name,
-                index_endpoint=index_endpoint.resource_name,
-            )
-
-            # Step 6: Create corpus with Vector Search backend
-            logger.info("Creating RAG corpus with Vector Search backend...")
+            # Create RagCorpus using new syntax with consistent display name
             self.rag_corpus = rag.create_corpus(
-                display_name=self.CORPUS_DISPLAY_NAME,
+                display_name=self.CORPUS_DISPLAY_NAME,  # Use consistent name
                 backend_config=rag.RagVectorDbConfig(
-                    rag_embedding_model_config=embedding_model_config,
-                    vector_db=vector_db
-                )
+                    rag_embedding_model_config=embedding_model_config
+                ),
             )
+
             logger.info(f"Corpus created: {self.rag_corpus.name}")
 
-            # Step 7: Import files from Google Drive
+            # Import files from Google Drive folder using new syntax
             logger.info("Importing files from Google Drive folder...")
             paths = [drive_folder_url]
 
             rag.import_files(
                 self.rag_corpus.name,
                 paths,
+                # Optional transformation config
                 transformation_config=rag.TransformationConfig(
                     chunking_config=rag.ChunkingConfig(
                         chunk_size=512,
                         chunk_overlap=150,
                     ),
                 ),
-                max_embedding_requests_per_min=1000,
+                max_embedding_requests_per_min=1000,  # Optional
             )
 
             logger.info("Files imported successfully from Google Drive")
             return True
 
         except Exception as e:
-            logger.error(f"Failed to create corpus with Vector Search: {str(e)}")
+            logger.error(f"Failed to create corpus from Drive: {str(e)}")
             logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
+            logger.error(f"Error details: Make sure the Google Drive folder is accessible to your service account")
             return False
-
-
-    # def create_corpus_from_drive(self) -> bool:
-    #     """Create RAG corpus from Google Drive folder using new syntax"""
-    #     # TODO This is teh old version
-    #     try:
-    #         logger.info("Creating corpus from Google Drive folder...")
-    #
-    #         # Google Drive folder URL
-    #         #drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
-    #         drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
-    #
-    #         # Configure embedding model using new syntax
-    #         embedding_model_config = rag.RagEmbeddingModelConfig(
-    #             vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-    #                 publisher_model="publishers/google/models/gemini-embedding-001"
-    #             )
-    #         )
-    #
-    #         # Create RagCorpus using new syntax with consistent display name
-    #         self.rag_corpus = rag.create_corpus(
-    #             display_name=self.CORPUS_DISPLAY_NAME,  # Use consistent name
-    #             backend_config=rag.RagVectorDbConfig(
-    #                 rag_embedding_model_config=embedding_model_config
-    #             ),
-    #         )
-    #
-    #         logger.info(f"Corpus created: {self.rag_corpus.name}")
-    #
-    #         # Import files from Google Drive folder using new syntax
-    #         logger.info("Importing files from Google Drive folder...")
-    #         paths = [drive_folder_url]
-    #
-    #         rag.import_files(
-    #             self.rag_corpus.name,
-    #             paths,
-    #             # Optional transformation config
-    #             transformation_config=rag.TransformationConfig(
-    #                 chunking_config=rag.ChunkingConfig(
-    #                     chunk_size=512,
-    #                     chunk_overlap=150,
-    #                 ),
-    #             ),
-    #             max_embedding_requests_per_min=1000,  # Optional
-    #         )
-    #
-    #         logger.info("Files imported successfully from Google Drive")
-    #         return True
-    #
-    #     except Exception as e:
-    #         logger.error(f"Failed to create corpus from Drive: {str(e)}")
-    #         logger.error(f"Error type: {type(e).__name__}")
-    #         logger.error(f"Error details: Make sure the Google Drive folder is accessible to your service account")
-    #         return False
 
     def load_existing_corpus(self, corpus_name: str) -> bool:
         """Load an existing RAG corpus"""

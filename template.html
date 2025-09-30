@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FTSC RAG Search Tool - Old version</title>
+    <title>FTSC RAG Search Tool - New Database Version</title>
+
     <!-- Add markdown-it library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
     <style>
@@ -56,6 +57,86 @@
         .header p {
             font-size: 1.1em;
             opacity: 0.9;
+        }
+
+        .guidelines-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .guidelines-modal {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .guidelines-modal h2 {
+            color: #1e293b;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .guidelines-content {
+            margin-bottom: 25px;
+            line-height: 1.8;
+            color: #334155;
+        }
+
+        .agreement-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8fafc;
+            border-radius: 10px;
+        }
+
+        .agreement-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+
+        .agreement-checkbox label {
+            font-weight: 600;
+            color: #1e293b;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .proceed-btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .proceed-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .proceed-btn:not(:disabled):hover {
+            transform: translateY(-2px);
         }
 
         .main-content {
@@ -720,6 +801,27 @@
     </style>
 </head>
 <body>
+    <div id="guidelinesOverlay" class="guidelines-overlay">
+        <div class="guidelines-modal">
+            <h2>Guidelines for Use</h2>
+            <div class="guidelines-content">
+                <p><strong>Before using this tool, please understand:</strong></p>
+                <ol>
+                    <li>This tool uses AI that may create fake information (hallucinate) or fabricate sources. <strong>Always verify responses carefully.</strong></li>
+                    <li>You can ask questions in complete sentences or short phrases.</li>
+                    <li>If you get "no relevant information found", try a more detailed query with additional keywords.</li>
+                    <li>You can have multi-message conversations with follow-up questions.</li>
+                    <li>Clear the conversation history when switching topics or when conversations get long to maintain performance.</li>
+                </ol>
+            </div>
+            <div class="agreement-checkbox">
+                <input type="checkbox" id="guidelinesAgree">
+                <label for="guidelinesAgree">I have read and agree to the guidelines</label>
+            </div>
+            <button id="proceedBtn" class="proceed-btn" disabled>Proceed to Tool</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <img src="/static/ftsc_logo.png" alt="FTSC Logo" class="header-logo">
@@ -735,9 +837,10 @@
             <p><strong>Guidelines for using the tool:</strong></p>
             <ol>
                 <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
-                <li>The LLM may create fake information (hallucinate), or even make up entire sources. <strong>Carefully check all responses.</strong></li>
-                <li>If the model fails to find relevant sources ("No relevant information found in the available sources"), try submitting a slightly longer prompt.</li>
-                <li><strong>NEW:</strong> You can now have multi-message conversations. Ask follow-up questions and the system will remember the conversation context.</li>
+                <li>The LLM may create fake information (hallucinate), or even fabricate entire sources. <strong>Carefully check all responses.</strong></li>
+                <li>If the model returns "no relevant information found in the available sources", try submitting a slightly longer, more detailed prompt with more keywords.</li>
+                <li>You can have multi-message conversations! Ask follow-up questions and the system will remember the conversation context.</li>
+                <li>LLM performance tends to degrade as a conversation gets longer. <strong> We strongly recommend clearing the conversation history using the "Clear Chat" button when you switch topics, or when the conversation starts to get long.</strong> </li>
             </ol>
         </div>
 
@@ -786,10 +889,10 @@
                         Aircraft certification requirements
                     </div>
                     <div class="example-item" onclick="setQuery('Can you tell me more about that?')">
-                        Can you tell me more about that?
+                        (Follow up) Can you tell me more about that?
                     </div>
                     <div class="example-item" onclick="setQuery('What are the safety considerations for this?')">
-                        What are the safety considerations for this?
+                        (Follow up) What are the safety considerations for this?
                     </div>
                 </div>
             </div>
@@ -801,18 +904,22 @@
     
     <p>
         This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>, 
-        which uses a large language model (LLM) connected to a database of information (a "corpus").
+        which uses a large language model (LLM) connected to a database of information.
     </p>
     
     <p>
         Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or 
         use case without the need for retraining, which would be expensive and infeasible for small-scale use.
     </p>
+
+    <p>
+        When you ask a question, the RAG tool first generates a general answer and then backs it up with information retrieved directly from the database.
+    </p>
     
     <p><strong>RAG does the following:</strong></p>
     
     <p>
-        <strong>1. Corpus Creation:</strong> The files in the database are broken into 
+        <strong>1. Database Creation:</strong> The files in the database are broken into
         text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
         From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
         raw files (e.g. PDFs) in the original database.
@@ -864,9 +971,43 @@
         // Conversation history storage
         let conversationHistory = [];
 
+        // Guidelines agreement handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const overlay = document.getElementById('guidelinesOverlay');
+            const checkbox = document.getElementById('guidelinesAgree');
+            const proceedBtn = document.getElementById('proceedBtn');
+
+            // Check if user has already agreed
+            const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
+            if (hasAgreed === 'true') {
+                overlay.style.display = 'none';
+            }
+
+            // Enable/disable proceed button based on checkbox
+            checkbox.addEventListener('change', function() {
+                proceedBtn.disabled = !this.checked;
+            });
+
+            // Handle proceed button
+            proceedBtn.addEventListener('click', function() {
+                if (checkbox.checked) {
+                    localStorage.setItem('ftsc_guidelines_agreed', 'true');
+                    overlay.style.display = 'none';
+                    checkStatus(); // Added
+                }
+            });
+        });
+
         // Check status on page load
         window.onload = function() {
-            checkStatus();
+            // Only check status if guidelines have been agreed to
+            const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
+            if (hasAgreed === 'true') {
+                checkStatus();
+            } else {
+                // If guidelines not agreed, ensure submit button is disabled
+                document.getElementById('submitButton').disabled = true;
+            }
             loadConversationHistory();
         };
 
@@ -945,7 +1086,13 @@
         function clearConversation() {
             if (confirm('Are you sure you want to clear the conversation history?')) {
                 conversationHistory = [];
+                localStorage.removeItem('ftsc_conversation_history');
                 saveConversationHistory();
+
+                // Clear the messages container completely
+                const messagesContainer = document.getElementById('conversationMessages');
+                messagesContainer.innerHTML = '';
+
                 displayConversationHistory();
             }
         }
