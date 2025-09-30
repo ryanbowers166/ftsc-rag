@@ -992,13 +992,21 @@
                 if (checkbox.checked) {
                     localStorage.setItem('ftsc_guidelines_agreed', 'true');
                     overlay.style.display = 'none';
+                    checkStatus(); // Added
                 }
             });
         });
 
         // Check status on page load
         window.onload = function() {
-            checkStatus();
+            // Only check status if guidelines have been agreed to
+            const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
+            if (hasAgreed === 'true') {
+                checkStatus();
+            } else {
+                // If guidelines not agreed, ensure submit button is disabled
+                document.getElementById('submitButton').disabled = true;
+            }
             loadConversationHistory();
         };
 
