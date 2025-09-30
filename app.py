@@ -234,7 +234,7 @@ class RAGSystem:
             # Configure embedding model using new syntax
             embedding_model_config = rag.RagEmbeddingModelConfig(
                 vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                    publisher_model="publishers/google/models/text-embedding-005"
+                    publisher_model="publishers/google/models/gemini-embedding-001"
                 )
             )
 
@@ -309,7 +309,7 @@ class RAGSystem:
             return self.initialize()
 
     def setup_model(self, top_k: int = 15, vector_distance_threshold: float = 0.8,
-                   llm_model_name: str = "gemini-2.0-flash-001", temperature: float = 0.5):
+                   llm_model_name: str = "gemini-2.5-flash", temperature: float = 0.5):
         """Setup the RAG model with retrieval tool using new syntax"""
         try:
             if not self.rag_corpus:
@@ -355,17 +355,66 @@ class RAGSystem:
             logger.error(f"Failed to setup model: {str(e)}")
             return False
 
-    def query_with_sources(self, user_query: str) -> str:
-        """Process a query using the RAG system with new syntax"""
+    def format_conversation_history(self, conversation_history: List[dict]) -> str:
+        """Format conversation history for inclusion in the prompt"""
+        if not conversation_history:
+            return ""
+        
+        formatted_history = "\n\nPREVIOUS CONVERSATION CONTEXT:\n"
+        for i, exchange in enumerate(conversation_history, 1):
+            formatted_history += f"\n--- Previous Exchange {i} ---\n"
+            formatted_history += f"Human: {exchange['query']}\n"
+            formatted_history += f"Assistant: {exchange['response']}\n"
+        
+        formatted_history += "\n--- End of Previous Context ---\n"
+        formatted_history += "\nPlease use this conversation context to provide a coherent response to the new query below. If the new query refers to previous topics or asks for clarification, use the context above to maintain continuity.\n\n"
+        
+        return formatted_history
+
+    def clean_hallucinated_sources(self, text):
+        """Remove hallucinated generic source citations that don't reference actual files"""
+        
+        # Pattern to match "Source: [text]" and capture the content after "Source:"
+        # We'll then check if that content contains file extensions
+        def source_replacer(match):
+            source_content = match.group(1).strip()
+            
+            # Check if the source content contains a file extension
+            has_file_extension = re.search(r'\.(?:pdf|doc|docx|txt|xlsx|xls|ppt|pptx)\b', source_content, re.IGNORECASE)
+            
+            if has_file_extension:
+                # Keep this source - it's a real file reference
+                return match.group(0)
+            else:
+                # Remove this source - it's hallucinated
+                return ''
+        
+        # Pattern to match "Source: " followed by everything until newline or end of string
+        pattern = r'\s*Source:\s*([^\n]*?)(?=\n|$)'
+        
+        # Apply the replacement function
+        cleaned_text = re.sub(pattern, source_replacer, text, flags=re.IGNORECASE)
+        
+        # Clean up any extra spaces on the same line, but preserve newlines
+        cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
+        
+        # Clean up any double newlines
+        cleaned_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_text)
+        cleaned_text = cleaned_text.strip()
+        
+        return cleaned_text
+    
+    def query_with_sources(self, user_query: str, conversation_history: List[dict] = None) -> dict:
+        """Process a query using the RAG system with conversation history support"""
         # Health check before processing query
         if not self.health_check():
             raise Exception("RAG system health check failed and could not be re-initialized")
 
         try:
-            logger.info(f"Processing query: {user_query[:100]}...")
+            logger.info(f"Processing query with {len(conversation_history) if conversation_history else 0} previous exchanges: {user_query[:100]}...")
 
             # Create a research-focused system prompt
-            system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+            base_system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
 
 CRITICAL RULES:
 1. ONLY use information from the retrieved documents
@@ -375,12 +424,20 @@ CRITICAL RULES:
 5. Format sources as: "Source: [exact filename from retrieval]"
 6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
 7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
+8. CONVERSATION CONTINUITY: If this message references previous exchanges or asks for clarification about earlier topics, use the conversation context to maintain coherent discussion flow
+9. If the user asks follow-up questions like "tell me more about that" or "what about safety considerations", refer to the previous context to understand what "that" refers to
 
-Answer the user's question based solely on the retrieved information.
+Answer the user's question based solely on the retrieved information and conversation context.
 
-User query: """
+"""
 
-            full_query = system_prompt + user_query
+            # Add conversation history if provided
+            conversation_context = ""
+            if conversation_history:
+                conversation_context = self.format_conversation_history(conversation_history)
+
+            # Combine everything
+            full_query = base_system_prompt + conversation_context + f"Current user query: {user_query}"
 
             # Generate response using the RAG model with new syntax
             response = self.rag_model.generate_content(full_query)
@@ -389,15 +446,14 @@ User query: """
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
 
+            response_text = self.clean_hallucinated_sources(response_text)
+
             logger.info(f"Query processed successfully with {len(source_files)} source files found")
             
             return {
                 'response': response_text,
                 'sources': source_files
             }
-
-            logger.info("Query processed successfully")
-            return response.text
 
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}")
@@ -496,32 +552,58 @@ def status():
     })
 
 
+@app.route('/initialize', methods=['POST'])
+def initialize():
+    """Initialize the RAG system"""
+    try:
+        success = initialize_rag_system()
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'RAG system initialized successfully!',
+                'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to initialize RAG system'
+            })
+    except Exception as e:
+        logger.error(f"Error in initialize endpoint: {str(e)}")
+        return jsonify({
+            'success': False,
+            'message': f'Error initializing RAG system: {str(e)}'
+        }), 500
 
-# Update your query endpoint
+
+# UPDATED: Query endpoint with conversation history support
 @app.route('/query', methods=['POST'])
 def query():
-    """Process a research query with auto-recovery and source links"""
+    """Process a research query with conversation history support"""
     global rag_system
 
     logger.info(f"Query endpoint called. Initialized: {rag_system.initialized}")
 
     try:
         data = request.get_json()
-        logger.info(f"Received data: {data}")
+        logger.info(f"Received data keys: {list(data.keys()) if data else 'No data'}")
 
         if not data:
             logger.error("No JSON data received")
             return jsonify({'error': 'No data received'}), 400
 
         user_query = data.get('query', '').strip()
+        conversation_history = data.get('conversation_history', [])
+        
         logger.info(f"User query: {user_query}")
+        logger.info(f"Conversation history length: {len(conversation_history)}")
 
         if not user_query:
             logger.error("Empty query received")
             return jsonify({'error': 'Query cannot be empty'}), 400
 
-        # Process the query using RAG system with sources
-        result = rag_system.query_with_sources(user_query)
+        # Process the query using RAG system with conversation history
+        result = rag_system.query_with_sources(user_query, conversation_history)
 
         logger.info(f"Returning result with {len(result['response'])} characters and {len(result['sources'])} sources")
         return jsonify(result)
@@ -633,80 +715,22 @@ def test_file_detection():
         logger.error(f"Error in file detection test: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# #
-# # @app.route('/create-corpus', methods=['POST'])
-# # def create_corpus():
-# #     """Create a new RAG corpus"""
-# #     try:
-# #         data = request.get_json()
-# #         display_name = data.get('display_name', 'FTSC Research Papers')
-# #         paths = data.get('paths', [])
-# #
-# #         logger.info(f"Creating corpus: {display_name}")
-# #         success = rag_system.create_corpus(display_name, paths)
-# #
-# #         if success:
-# #             # Setup the model after creating corpus
-# #             model_success = rag_system.setup_model()
-# #             if model_success:
-# #                 rag_system.initialized = True
-# #             return jsonify({
-# #                 'success': model_success,
-# #                 'message': 'Corpus created and model setup completed' if model_success else 'Corpus created but model setup failed',
-# #                 'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
-# #             })
-# #         else:
-# #             return jsonify({
-# #                 'success': False,
-# #                 'message': 'Failed to create corpus'
-# #             })
-# #
-# #     except Exception as e:
-# #         logger.error(f"Error creating corpus: {str(e)}")
-# #         return jsonify({
-# #             'success': False,
-# #             'message': f'Error creating corpus: {str(e)}'
-# #         })
-# #
-# # @app.route('/load-corpus', methods=['POST'])
-# # def load_corpus():
-# #     """Load an existing RAG corpus"""
-# #     try:
-# #         data = request.get_json()
-# #         corpus_name = data.get('corpus_name')
-# #
-# #         if not corpus_name:
-# #             return jsonify({
-# #                 'success': False,
-# #                 'message': 'Corpus name is required'
-# #             })
-# #
-# #         logger.info(f"Loading corpus: {corpus_name}")
-# #         success = rag_system.load_existing_corpus(corpus_name)
-# #
-# #         if success:
-# #             # Setup the model after loading corpus
-# #             model_success = rag_system.setup_model()
-# #             if model_success:
-# #                 rag_system.initialized = True
-# #             return jsonify({
-# #                 'success': model_success,
-# #                 'message': 'Corpus loaded and model setup completed' if model_success else 'Corpus loaded but model setup failed',
-# #                 'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
-# #             })
-# #         else:
-# #             return jsonify({
-# #                 'success': False,
-# #                 'message': 'Failed to load corpus'
-# #             })
-# #
-# #     except Exception as e:
-# #         logger.error(f"Error loading corpus: {str(e)}")
-# #         return jsonify({
-# #             'success': False,
-# #             'message': f'Error loading corpus: {str(e)}'
-# #         })
-# #
+# NEW: Conversation management endpoints
+@app.route('/clear-conversation', methods=['POST'])
+def clear_conversation():
+    """Clear conversation history (this is mainly handled client-side, but included for completeness)"""
+    try:
+        return jsonify({
+            'success': True,
+            'message': 'Conversation cleared successfully'
+        })
+    except Exception as e:
+        logger.error(f"Error clearing conversation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 @app.route('/test-corpus', methods=['GET'])
 def test_corpus():
     """Test if corpus has documents and show corpus info"""
@@ -788,9 +812,3 @@ if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
 
     app.run(host='0.0.0.0', port=port, debug=False)
-
-
-
-
-
-
