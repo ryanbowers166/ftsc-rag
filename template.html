@@ -1000,16 +1000,20 @@
 
         // Check status on page load
         window.onload = function() {
-            // Only check status if guidelines have been agreed to
-            const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
-            if (hasAgreed === 'true') {
-                checkStatus();
-            } else {
-                // If guidelines not agreed, ensure submit button is disabled
-                document.getElementById('submitButton').disabled = true;
-            }
+            checkStatus();
             loadConversationHistory();
         };
+        // window.onload = function() {
+        //     // Only check status if guidelines have been agreed to
+        //     const hasAgreed = localStorage.getItem('ftsc_guidelines_agreed');
+        //     if (hasAgreed === 'true') {
+        //         checkStatus();
+        //     } else {
+        //         // If guidelines not agreed, ensure submit button is disabled
+        //         document.getElementById('submitButton').disabled = true;
+        //     }
+        //     loadConversationHistory();
+        // };
 
         // Load conversation history from localStorage
         function loadConversationHistory() {
