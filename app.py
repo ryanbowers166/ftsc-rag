@@ -132,7 +132,7 @@ class RAGSystem:
         self.rag_corpus = None
         self.rag_retrieval_tool = None
         self.initialized = False
-        self.PROJECT_ID = "ftscrag"
+        self.PROJECT_ID = "My First Project"
         self.LOCATION = "us-central1"
         self.CORPUS_DISPLAY_NAME = "FTSC Research Papers Corpus"  # Consistent corpus name
         self.drive_helper = GoogleDriveHelper()
