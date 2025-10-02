@@ -231,13 +231,23 @@ class RAGSystem:
             drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
 
             # Step 1: Create streaming index
-            logger.info("Creating Vector Search index...")
+            # logger.info("Creating Vector Search index...")
+            # index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
+            #     display_name="ftsc-rag-vector-index",
+            #     dimensions=768,  # For gemini-embedding-001
+            #     distance_measure_type="DOT_PRODUCT_DISTANCE",
+            #     index_update_method="STREAM_UPDATE",
+            #     description="Vector index for FTSC Research Papers"
+            # )
             index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
                 display_name="ftsc-rag-vector-index",
-                dimensions=768,  # For gemini-embedding-001
+                dimensions=768,  # For text-embedding-004
+                approximate_neighbors_count=150,  # REQUIRED for tree-AH algorithm
                 distance_measure_type="DOT_PRODUCT_DISTANCE",
                 index_update_method="STREAM_UPDATE",
-                description="Vector index for FTSC Research Papers"
+                description="Vector index for FTSC Research Papers",
+                # Optional: add shard size for better performance with large datasets
+                # shard_size="SHARD_SIZE_SMALL"  # Options: SMALL, MEDIUM, LARGE
             )
             logger.info(f"Index created: {index.resource_name}")
 
