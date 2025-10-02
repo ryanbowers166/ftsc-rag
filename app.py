@@ -222,6 +222,39 @@ class RAGSystem:
             logger.error(f"Error initializing RAG system: {str(e)}")
             return False
 
+    def find_existing_vector_search_resources(self):
+        """Find existing Vector Search index and endpoint"""
+        try:
+            logger.info("Searching for existing Vector Search resources...")
+            
+            # Find existing index
+            indexes = aiplatform.MatchingEngineIndex.list(
+                filter='display_name="ftsc-rag-vector-index"'
+            )
+            existing_index = None
+            for idx in indexes:
+                if idx.display_name == "ftsc-rag-vector-index":
+                    existing_index = idx
+                    logger.info(f"Found existing index: {idx.resource_name}")
+                    break
+            
+            # Find existing endpoint
+            endpoints = aiplatform.MatchingEngineIndexEndpoint.list(
+                filter='display_name="ftsc-rag-index-endpoint"'
+            )
+            existing_endpoint = None
+            for ep in endpoints:
+                if ep.display_name == "ftsc-rag-index-endpoint":
+                    existing_endpoint = ep
+                    logger.info(f"Found existing endpoint: {ep.resource_name}")
+                    break
+            
+            return existing_index, existing_endpoint
+            
+        except Exception as e:
+            logger.error(f"Error finding existing resources: {str(e)}")
+            return None, None
+    
     def create_corpus_with_vector_search(self) -> bool:
         """Create RAG corpus using Vertex AI Vector Search instead of RagManagedDb"""
         try:
@@ -230,95 +263,62 @@ class RAGSystem:
             # Google Drive folder URL
             drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
 
-            # Step 1: Create streaming index
-            # logger.info("Creating Vector Search index...")
-            # index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
-            #     display_name="ftsc-rag-vector-index",
-            #     dimensions=768,  # For gemini-embedding-001
-            #     distance_measure_type="DOT_PRODUCT_DISTANCE",
-            #     index_update_method="STREAM_UPDATE",
-            #     description="Vector index for FTSC Research Papers"
-            # )
-            index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
-                display_name="ftsc-rag-vector-index",
-                dimensions=768,  # For text-embedding-004
-                approximate_neighbors_count=150,  # REQUIRED for tree-AH algorithm
-                distance_measure_type="DOT_PRODUCT_DISTANCE",
-                index_update_method="STREAM_UPDATE",
-                description="Vector index for FTSC Research Papers",
-                # Optional: add shard size for better performance with large datasets
-                # shard_size="SHARD_SIZE_SMALL"  # Options: SMALL, MEDIUM, LARGE
-            )
-            logger.info(f"Index created: {index.resource_name}")
-
-            # Step 2: Create index endpoint
-            logger.info("Creating index endpoint...")
-            index_endpoint = aiplatform.MatchingEngineIndexEndpoint.create(
-                display_name="ftsc-rag-index-endpoint",
-                public_endpoint_enabled=True,
-                description="Endpoint for FTSC RAG queries"
-            )
-            logger.info(f"Endpoint created: {index_endpoint.resource_name}")
-
-            # Step 3: Deploy index to endpoint
-            logger.info("Deploying index to endpoint (this may take several minutes)...")
-            index_endpoint.deploy_index(
-                index=index,
-                deployed_index_id="ftsc_deployed_rag_index",
-                min_replica_count=1,
-                max_replica_count=1
-            )
-            logger.info("Index deployed successfully")
-
-            # Step 4: Configure embedding model
-            embedding_model_config = rag.RagEmbeddingModelConfig(
-                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                    publisher_model="publishers/google/models/text-embedding-004"
+            # Try to find existing resources first
+            existing_index, existing_endpoint = self.find_existing_vector_search_resources()
+            
+            # Step 1: Get or create index
+            if existing_index:
+                logger.info("Using existing index")
+                index = existing_index
+            else:
+                logger.info("Creating new Vector Search index...")
+                index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
+                    display_name="ftsc-rag-vector-index",
+                    dimensions=768,  # For text-embedding-004
+                    approximate_neighbors_count=150,  # REQUIRED for tree-AH algorithm
+                    distance_measure_type="DOT_PRODUCT_DISTANCE",
+                    index_update_method="STREAM_UPDATE",
+                    description="Vector index for FTSC Research Papers",
                 )
-            )
+                logger.info(f"Index created: {index.resource_name}")
 
-            # Step 5: Configure Vector Search as the vector DB
-            vector_db = rag.VertexVectorSearch(
-                index=index.resource_name,
-                index_endpoint=index_endpoint.resource_name,
-            )
-
-            # Step 6: Create corpus with Vector Search backend
-            logger.info("Creating RAG corpus with Vector Search backend...")
-            self.rag_corpus = rag.create_corpus(
-                display_name=self.CORPUS_DISPLAY_NAME,
-                backend_config=rag.RagVectorDbConfig(
-                    rag_embedding_model_config=embedding_model_config,
-                    vector_db=vector_db
+            # Step 2: Get or create endpoint
+            if existing_endpoint:
+                logger.info("Using existing endpoint")
+                index_endpoint = existing_endpoint
+            else:
+                logger.info("Creating index endpoint...")
+                index_endpoint = aiplatform.MatchingEngineIndexEndpoint.create(
+                    display_name="ftsc-rag-index-endpoint",
+                    public_endpoint_enabled=True,
+                    description="Endpoint for FTSC RAG queries"
                 )
-            )
-            logger.info(f"Corpus created: {self.rag_corpus.name}")
+                logger.info(f"Endpoint created: {index_endpoint.resource_name}")
 
-            # Step 7: Import files from Google Drive
-            logger.info("Importing files from Google Drive folder...")
-            paths = [drive_folder_url]
-
-            rag.import_files(
-                self.rag_corpus.name,
-                paths,
-                transformation_config=rag.TransformationConfig(
-                    chunking_config=rag.ChunkingConfig(
-                        chunk_size=512,
-                        chunk_overlap=150,
-                    ),
-                ),
-                max_embedding_requests_per_min=1000,
-            )
-
-            logger.info("Files imported successfully from Google Drive")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to create corpus with Vector Search: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
-            return False
+            # Step 3: Check if index is already deployed to endpoint
+            deployed = False
+            if existing_endpoint:
+                try:
+                    deployed_indexes = existing_endpoint.deployed_indexes
+                    for dep_idx in deployed_indexes:
+                        if dep_idx.id == "ftsc_deployed_rag_index":
+                            logger.info("Index already deployed to endpoint")
+                            deployed = True
+                            break
+                except:
+                    pass
+            
+            if not deployed:
+                logger.info("Deploying index to endpoint (this may take several minutes)...")
+                index_endpoint.deploy_index(
+                    index=index,
+                    deployed_index_id="ftsc_deployed_rag_index",
+                    min_replica_count=1,
+                    max_replica_count=1
+                )
+                logger.info("Index deployed successfully")
+            else:
+                logger.info("Skipping deployment - already deployed")
 
 
     # def create_corpus_from_drive(self) -> bool:
