@@ -1,0 +1,70 @@
+# Cloud Build configuration for automated deployment
+# This enables CI/CD from GitHub or Cloud Source Repositories
+#
+# To use this:
+# 1. Connect your repository to Cloud Build
+# 2. Create a build trigger
+# 3. Every push to main branch will automatically deploy
+#
+# Read more: https://cloud.google.com/build/docs/deploying-builds/deploy-cloud-run
+
+steps:
+  # Build the container image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ftsc-rag-search:$COMMIT_SHA'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/ftsc-rag-search:latest'
+      - '.'
+
+  # Push the container image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/ftsc-rag-search:$COMMIT_SHA'
+
+  # Deploy to Cloud Run with cost-optimized settings
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'ftsc-rag-search'
+      - '--image=gcr.io/$PROJECT_ID/ftsc-rag-search:$COMMIT_SHA'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+      - '--min-instances=0'
+      - '--max-instances=3'
+      - '--memory=512Mi'
+      - '--cpu=1'
+      - '--timeout=60s'
+      - '--concurrency=80'
+      - '--cpu-throttling'
+      - '--no-cpu-boost'
+      - '--execution-environment=gen2'
+      - '--port=8080'
+      # Note: Environment variables should be set separately via Secret Manager
+      # Example using Secret Manager:
+      # - '--set-secrets=RAGIE_API_KEY=RAGIE_API_KEY:latest'
+      # - '--set-secrets=GOOGLE_DRIVE_FOLDER_ID=GOOGLE_DRIVE_FOLDER_ID:latest'
+      # Or using --set-env-vars flag:
+      # - '--set-env-vars=RAGIE_API_KEY=your_key,GOOGLE_DRIVE_FOLDER_ID=your_folder_id'
+
+# Store images in Container Registry
+images:
+  - 'gcr.io/$PROJECT_ID/ftsc-rag-search:$COMMIT_SHA'
+  - 'gcr.io/$PROJECT_ID/ftsc-rag-search:latest'
+
+# Build options
+options:
+  # Use higher CPU for faster builds
+  machineType: 'E2_HIGHCPU_8'
+
+  # Build timeout
+  timeout: '1200s'
+
+  # Logging
+  logging: CLOUD_LOGGING_ONLY

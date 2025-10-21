@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:docs.ragie.ai)",
+      "WebSearch",
+      "WebFetch(domain:ragie.ai)",
+      "WebFetch(domain:www.ragie.ai)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

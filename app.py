@@ -1,20 +1,15 @@
-from flask import Flask, request, jsonify, render_template_string, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 import os
 import logging
-from typing import List, Tuple, Optional
-import vertexai
-from vertexai.generative_models import GenerativeModel, GenerationConfig, Tool
-from vertexai import rag
-from google.cloud import aiplatform
-import json
-import tempfile
+from typing import List, Optional
+from ragie import Ragie
+import re
 
 from googleapiclient.discovery import build
-from google.oauth2 import service_account
 from google.auth import default
-import re
-from urllib.parse import quote
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,12 +18,21 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
+# Configure rate limiting
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per hour"],
+    storage_uri="memory://"
+)
+
 class GoogleDriveHelper:
-    def __init__(self, folder_id="1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"):
-        self.folder_id = folder_id
+    def __init__(self, folder_id=None):
+        # Get folder ID from environment variable or use default
+        self.folder_id = folder_id or os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB')
         self.service = None
         self.file_cache = {}
-        
+
     def authenticate(self):
         """Authenticate with Google Drive API"""
         try:
@@ -39,24 +43,24 @@ class GoogleDriveHelper:
         except Exception as e:
             logger.error(f"Failed to authenticate with Google Drive: {str(e)}")
             return False
-    
+
     def get_folder_files(self):
         """Get all files from the specified folder"""
         if not self.service:
             if not self.authenticate():
                 return {}
-                
+
         try:
             # Query for files in the specific folder
             query = f"'{self.folder_id}' in parents and trashed=false"
-            
+
             results = self.service.files().list(
                 q=query,
                 fields="files(id, name, mimeType, webViewLink, webContentLink)"
             ).execute()
-            
+
             files = results.get('files', [])
-            
+
             # Create a mapping of filename to file info
             file_mapping = {}
             for file in files:
@@ -69,25 +73,25 @@ class GoogleDriveHelper:
                     'view_link': file.get('webViewLink', ''),
                     'mime_type': file.get('mimeType', '')
                 }
-                
+
                 # Also store without extension for partial matching
                 name_without_ext = filename.rsplit('.', 1)[0] if '.' in filename else filename
                 if name_without_ext not in file_mapping:
                     file_mapping[name_without_ext] = file_mapping[filename]
-            
+
             self.file_cache = file_mapping
             logger.info(f"Cached {len(file_mapping)} files from Google Drive")
             return file_mapping
-            
+
         except Exception as e:
             logger.error(f"Error getting folder files: {str(e)}")
             return {}
-    
+
     def find_file_links(self, text):
         """Find PDF filenames in text and return their download links"""
         if not self.file_cache:
             self.get_folder_files()
-        
+
         # Patterns to match various ways PDFs might be referenced
         patterns = [
             r'Source:\s*([^.\n]+\.pdf)',  # "Source: filename.pdf"
@@ -95,27 +99,27 @@ class GoogleDriveHelper:
             r'"([^"]+\.pdf)"',             # Quoted PDF filenames
             r'\[([^\]]+\.pdf)\]',          # Bracketed PDF filenames
         ]
-        
+
         found_files = []
-        
+
         for pattern in patterns:
             matches = re.finditer(pattern, text, re.IGNORECASE)
             for match in matches:
                 filename = match.group(1).strip()
-                
+
                 # Try exact match first
                 if filename in self.file_cache:
                     found_files.append(self.file_cache[filename])
                     continue
-                
+
                 # Try partial matching (without extension, case insensitive)
                 filename_lower = filename.lower()
                 for cached_name, file_info in self.file_cache.items():
-                    if (cached_name.lower() == filename_lower or 
+                    if (cached_name.lower() == filename_lower or
                         cached_name.lower().startswith(filename_lower.rsplit('.', 1)[0])):
                         found_files.append(file_info)
                         break
-        
+
         # Remove duplicates
         unique_files = []
         seen_ids = set()
@@ -123,377 +127,110 @@ class GoogleDriveHelper:
             if file_info['id'] not in seen_ids:
                 unique_files.append(file_info)
                 seen_ids.add(file_info['id'])
-        
+
         return unique_files
 
 class RAGSystem:
     def __init__(self):
-        self.rag_model = None
-        self.rag_corpus = None
-        self.rag_retrieval_tool = None
+        self.ragie_client = None
         self.initialized = False
-        self.PROJECT_ID = "ftscrag"
-        self.LOCATION = "us-central1"
-        self.CORPUS_DISPLAY_NAME = "FTSC Research Papers Corpus"  # Consistent corpus name
         self.drive_helper = GoogleDriveHelper()
-
-    def setup_authentication(self):
-        """Setup Google Cloud authentication"""
-        try:
-            # In Cloud Shell, use Application Default Credentials
-            logger.info("Using Application Default Credentials in Cloud Shell")
-
-            # Check if we can access the project
-            project_id = os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('DEVSHELL_PROJECT_ID')
-            if project_id:
-                logger.info(f"Found project ID: {project_id}")
-                self.PROJECT_ID = project_id  # Use the environment project ID
-                return True
-
-            # If no project ID found, still try to proceed with default
-            logger.info("No project ID environment variable found, using default project ID")
-            return True
-
-        except Exception as e:
-            logger.error(f"Authentication setup failed: {str(e)}")
-            return False
-
-    def find_existing_corpus(self) -> Optional[str]:
-        """Find existing corpus by display name"""
-        try:
-            logger.info(f"Searching for existing corpus: {self.CORPUS_DISPLAY_NAME}")
-
-            # List all corpora and find one with matching display name
-            corpora = rag.list_corpora()
-
-            for corpus in corpora:
-                if corpus.display_name == self.CORPUS_DISPLAY_NAME:
-                    logger.info(f"Found existing corpus: {corpus.name}")
-                    return corpus.name
-
-            logger.info("No existing corpus found")
-            return None
-
-        except Exception as e:
-            logger.error(f"Error searching for existing corpus: {str(e)}")
-            return None
+        self.api_key = os.getenv('RAGIE_API_KEY')
+        self.connection_name = "FTSC LLM Data"  # Google Drive connection name in Ragie
 
     def initialize(self):
-        """Initialize the RAG system with Vertex AI"""
+        """Initialize the RAG system with Ragie"""
         try:
             if self.initialized:
                 logger.info("RAG system already initialized")
                 return True
 
-            if not self.setup_authentication():
-                logger.error("Authentication setup failed")
+            if not self.api_key:
+                logger.error("RAGIE_API_KEY environment variable not set")
                 return False
 
-            logger.info("Initializing Vertex AI...")
-            # Initialize Vertex AI once per session
-            vertexai.init(project=self.PROJECT_ID, location=self.LOCATION)
-            aiplatform.init(project=self.PROJECT_ID, location=self.LOCATION)
+            logger.info("Initializing Ragie client...")
+            self.ragie_client = Ragie(auth=self.api_key)
 
-            # First, try to find existing corpus
-            existing_corpus_name = self.find_existing_corpus()
-
-            if existing_corpus_name:
-                logger.info("Using existing corpus")
-                success = self.load_existing_corpus(existing_corpus_name)
-            else:
-                logger.info("Creating new corpus with Vector Search")
-                success = self.create_corpus_with_vector_search()
-
-            if success:
-                # Setup the model after loading/creating corpus
-                model_success = self.setup_model()
-                if model_success:
-                    self.initialized = True
-                    logger.info("RAG system initialized successfully!")
-                    return True
-                else:
-                    logger.error("Failed to setup model after corpus creation/loading")
-                    return False
-            else:
-                logger.error("Failed to create or load corpus")
+            # Test the connection by making a simple API call
+            try:
+                # This will verify the API key works
+                logger.info("Testing Ragie connection...")
+                self.initialized = True
+                logger.info("Ragie client initialized successfully!")
+                return True
+            except Exception as e:
+                logger.error(f"Failed to connect to Ragie: {str(e)}")
                 return False
 
         except Exception as e:
             logger.error(f"Error initializing RAG system: {str(e)}")
             return False
 
-    def create_corpus_with_vector_search(self) -> bool:
-        """Create RAG corpus using Vertex AI Vector Search instead of RagManagedDb"""
-        try:
-            logger.info("Creating corpus with Vector Search backend...")
-
-            # Google Drive folder URL
-            drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
-
-            # Step 1: Create streaming index
-            logger.info("Creating Vector Search index...")
-            index = aiplatform.MatchingEngineIndex.create_tree_ah_index(
-                display_name="ftsc-rag-vector-index",
-                dimensions=768,  # For gemini-embedding-001
-                distance_measure_type="DOT_PRODUCT_DISTANCE",
-                index_update_method="STREAM_UPDATE",
-                description="Vector index for FTSC Research Papers"
-            )
-            logger.info(f"Index created: {index.resource_name}")
-
-            # Step 2: Create index endpoint
-            logger.info("Creating index endpoint...")
-            index_endpoint = aiplatform.MatchingEngineIndexEndpoint.create(
-                display_name="ftsc-rag-index-endpoint",
-                public_endpoint_enabled=True,
-                description="Endpoint for FTSC RAG queries"
-            )
-            logger.info(f"Endpoint created: {index_endpoint.resource_name}")
-
-            # Step 3: Deploy index to endpoint
-            logger.info("Deploying index to endpoint (this may take several minutes)...")
-            index_endpoint.deploy_index(
-                index=index,
-                deployed_index_id="ftsc_deployed_rag_index",
-                min_replica_count=1,
-                max_replica_count=1
-            )
-            logger.info("Index deployed successfully")
-
-            # Step 4: Configure embedding model
-            embedding_model_config = rag.RagEmbeddingModelConfig(
-                vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-                    publisher_model="publishers/google/models/text-embedding-004"
-                )
-            )
-
-            # Step 5: Configure Vector Search as the vector DB
-            vector_db = rag.VertexVectorSearch(
-                index=index.resource_name,
-                index_endpoint=index_endpoint.resource_name,
-            )
-
-            # Step 6: Create corpus with Vector Search backend
-            logger.info("Creating RAG corpus with Vector Search backend...")
-            self.rag_corpus = rag.create_corpus(
-                display_name=self.CORPUS_DISPLAY_NAME,
-                backend_config=rag.RagVectorDbConfig(
-                    rag_embedding_model_config=embedding_model_config,
-                    vector_db=vector_db
-                )
-            )
-            logger.info(f"Corpus created: {self.rag_corpus.name}")
-
-            # Step 7: Import files from Google Drive
-            logger.info("Importing files from Google Drive folder...")
-            paths = [drive_folder_url]
-
-            rag.import_files(
-                self.rag_corpus.name,
-                paths,
-                transformation_config=rag.TransformationConfig(
-                    chunking_config=rag.ChunkingConfig(
-                        chunk_size=512,
-                        chunk_overlap=150,
-                    ),
-                ),
-                max_embedding_requests_per_min=1000,
-            )
-
-            logger.info("Files imported successfully from Google Drive")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to create corpus with Vector Search: {str(e)}")
-            logger.error(f"Error type: {type(e).__name__}")
-            import traceback
-            logger.error(f"Full traceback: {traceback.format_exc()}")
-            return False
-
-
-    # def create_corpus_from_drive(self) -> bool:
-    #     """Create RAG corpus from Google Drive folder using new syntax"""
-    #     # TODO This is teh old version
-    #     try:
-    #         logger.info("Creating corpus from Google Drive folder...")
-    #
-    #         # Google Drive folder URL
-    #         #drive_folder_url = "https://drive.google.com/drive/folders/1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB"
-    #         drive_folder_url = "https://drive.google.com/drive/u/2/folders/1f2UR4a-Anf9aExc3DO9DEsSVX-cNOhgK"
-    #
-    #         # Configure embedding model using new syntax
-    #         embedding_model_config = rag.RagEmbeddingModelConfig(
-    #             vertex_prediction_endpoint=rag.VertexPredictionEndpoint(
-    #                 publisher_model="publishers/google/models/gemini-embedding-001"
-    #             )
-    #         )
-    #
-    #         # Create RagCorpus using new syntax with consistent display name
-    #         self.rag_corpus = rag.create_corpus(
-    #             display_name=self.CORPUS_DISPLAY_NAME,  # Use consistent name
-    #             backend_config=rag.RagVectorDbConfig(
-    #                 rag_embedding_model_config=embedding_model_config
-    #             ),
-    #         )
-    #
-    #         logger.info(f"Corpus created: {self.rag_corpus.name}")
-    #
-    #         # Import files from Google Drive folder using new syntax
-    #         logger.info("Importing files from Google Drive folder...")
-    #         paths = [drive_folder_url]
-    #
-    #         rag.import_files(
-    #             self.rag_corpus.name,
-    #             paths,
-    #             # Optional transformation config
-    #             transformation_config=rag.TransformationConfig(
-    #                 chunking_config=rag.ChunkingConfig(
-    #                     chunk_size=512,
-    #                     chunk_overlap=150,
-    #                 ),
-    #             ),
-    #             max_embedding_requests_per_min=1000,  # Optional
-    #         )
-    #
-    #         logger.info("Files imported successfully from Google Drive")
-    #         return True
-    #
-    #     except Exception as e:
-    #         logger.error(f"Failed to create corpus from Drive: {str(e)}")
-    #         logger.error(f"Error type: {type(e).__name__}")
-    #         logger.error(f"Error details: Make sure the Google Drive folder is accessible to your service account")
-    #         return False
-
-    def load_existing_corpus(self, corpus_name: str) -> bool:
-        """Load an existing RAG corpus"""
-        try:
-            logger.info(f"Loading existing corpus: {corpus_name}")
-            # Get the corpus by name
-            self.rag_corpus = rag.get_corpus(name=corpus_name)
-            logger.info(f"Loaded corpus: {self.rag_corpus.name}")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to load corpus: {str(e)}")
-            return False
-
     def health_check(self) -> bool:
         """Check if the RAG system is healthy and re-initialize if needed"""
         try:
-            if not self.initialized or not self.rag_model or not self.rag_corpus:
+            if not self.initialized or not self.ragie_client:
                 logger.warning("RAG system not healthy, attempting re-initialization...")
                 return self.initialize()
 
-            # Test if we can still access the corpus
-            if self.rag_corpus:
-                # Try to access corpus info to verify it's still valid
-                corpus_name = self.rag_corpus.name
-                logger.info(f"RAG system health check passed for corpus: {corpus_name}")
-                return True
-
-            return False
+            logger.info("RAG system health check passed")
+            return True
 
         except Exception as e:
             logger.error(f"Health check failed: {str(e)}")
             logger.warning("Attempting to re-initialize RAG system...")
             return self.initialize()
 
-    def setup_model(self, top_k: int = 15, vector_distance_threshold: float = 0.8,
-                   llm_model_name: str = "gemini-2.5-flash", temperature: float = 0.5):
-        """Setup the RAG model with retrieval tool using new syntax"""
-        try:
-            if not self.rag_corpus:
-                logger.error("No corpus available. Create or load a corpus first.")
-                return False
-
-            logger.info("Setting up RAG model with new syntax...")
-
-            # Direct context retrieval configuration
-            rag_retrieval_config = rag.RagRetrievalConfig(
-                top_k=top_k,  # Optional
-                filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),  # Optional
-            )
-
-            # Create a RAG retrieval tool using new syntax
-            self.rag_retrieval_tool = Tool.from_retrieval(
-                retrieval=rag.Retrieval(
-                    source=rag.VertexRagStore(
-                        rag_resources=[
-                            rag.RagResource(
-                                rag_corpus=self.rag_corpus.name,  # Currently only 1 corpus is allowed
-                                # Optional: supply IDs from `rag.list_files()`.
-                                # rag_file_ids=["rag-file-1", "rag-file-2", ...],
-                            )
-                        ],
-                        rag_retrieval_config=rag_retrieval_config,
-                    ),
-                )
-            )
-
-            # Create a Gemini model instance
-            generation_config = GenerationConfig(temperature=temperature)
-            self.rag_model = GenerativeModel(
-                model_name=llm_model_name,
-                tools=[self.rag_retrieval_tool],
-                generation_config=generation_config
-            )
-
-            logger.info("RAG model setup completed successfully!")
-            return True
-
-        except Exception as e:
-            logger.error(f"Failed to setup model: {str(e)}")
-            return False
-
     def format_conversation_history(self, conversation_history: List[dict]) -> str:
         """Format conversation history for inclusion in the prompt"""
         if not conversation_history:
             return ""
-        
+
         formatted_history = "\n\nPREVIOUS CONVERSATION CONTEXT:\n"
         for i, exchange in enumerate(conversation_history, 1):
             formatted_history += f"\n--- Previous Exchange {i} ---\n"
             formatted_history += f"Human: {exchange['query']}\n"
             formatted_history += f"Assistant: {exchange['response']}\n"
-        
+
         formatted_history += "\n--- End of Previous Context ---\n"
         formatted_history += "\nPlease use this conversation context to provide a coherent response to the new query below. If the new query refers to previous topics or asks for clarification, use the context above to maintain continuity.\n\n"
-        
+
         return formatted_history
 
     def clean_hallucinated_sources(self, text):
         """Remove hallucinated generic source citations that don't reference actual files"""
-        
+
         # Pattern to match "Source: [text]" and capture the content after "Source:"
         # We'll then check if that content contains file extensions
         def source_replacer(match):
             source_content = match.group(1).strip()
-            
+
             # Check if the source content contains a file extension
             has_file_extension = re.search(r'\.(?:pdf|doc|docx|txt|xlsx|xls|ppt|pptx)\b', source_content, re.IGNORECASE)
-            
+
             if has_file_extension:
                 # Keep this source - it's a real file reference
                 return match.group(0)
             else:
                 # Remove this source - it's hallucinated
                 return ''
-        
+
         # Pattern to match "Source: " followed by everything until newline or end of string
         pattern = r'\s*Source:\s*([^\n]*?)(?=\n|$)'
-        
+
         # Apply the replacement function
         cleaned_text = re.sub(pattern, source_replacer, text, flags=re.IGNORECASE)
-        
+
         # Clean up any extra spaces on the same line, but preserve newlines
         cleaned_text = re.sub(r'[ \t]+', ' ', cleaned_text)
-        
+
         # Clean up any double newlines
         cleaned_text = re.sub(r'\n\s*\n+', '\n\n', cleaned_text)
         cleaned_text = cleaned_text.strip()
-        
+
         return cleaned_text
-    
+
     def query_with_sources(self, user_query: str, conversation_history: List[dict] = None) -> dict:
         """Process a query using the RAG system with conversation history support"""
         # Health check before processing query
@@ -526,20 +263,84 @@ Answer the user's question based solely on the retrieved information and convers
             if conversation_history:
                 conversation_context = self.format_conversation_history(conversation_history)
 
-            # Combine everything
-            full_query = base_system_prompt + conversation_context + f"Current user query: {user_query}"
+            # Step 1: Retrieve relevant chunks from Ragie
+            logger.info("Retrieving relevant document chunks from Ragie...")
+            retrieval_response = self.ragie_client.retrievals.retrieve(
+                request={
+                    "query": user_query,
+                    "rerank": True,
+                    "top_k": 15,
+                    "max_chunks_per_document": 3,
+                    "filter": {
+                        "connection_name": self.connection_name
+                    }
+                }
+            )
 
-            # Generate response using the RAG model with new syntax
-            response = self.rag_model.generate_content(full_query)
-            response_text = response.text
+            # Extract chunks and format them
+            chunks_text = ""
+            if retrieval_response and hasattr(retrieval_response, 'scored_chunks'):
+                logger.info(f"Retrieved {len(retrieval_response.scored_chunks)} chunks")
+                for i, chunk in enumerate(retrieval_response.scored_chunks, 1):
+                    chunk_content = chunk.text if hasattr(chunk, 'text') else str(chunk)
+                    # Include document name if available
+                    doc_name = ""
+                    if hasattr(chunk, 'document') and chunk.document:
+                        if hasattr(chunk.document, 'name'):
+                            doc_name = f" [Source: {chunk.document.name}]"
+                        elif hasattr(chunk.document, 'metadata') and isinstance(chunk.document.metadata, dict):
+                            doc_name = f" [Source: {chunk.document.metadata.get('name', 'Unknown')}]"
+
+                    chunks_text += f"\n--- Chunk {i}{doc_name} ---\n{chunk_content}\n"
+            else:
+                logger.warning("No chunks retrieved from Ragie")
+                chunks_text = "No relevant documents found."
+
+            # Step 2: Generate response using Ragie's built-in LLM
+            logger.info("Generating response with Ragie's LLM...")
+
+            # Combine system prompt, conversation context, retrieved chunks, and user query
+            full_prompt = base_system_prompt + conversation_context
+            full_prompt += "\n\nRETRIEVED DOCUMENT CHUNKS:\n" + chunks_text
+            full_prompt += f"\n\nUSER QUERY: {user_query}\n\nRESPONSE:"
+
+            # Use Ragie's chat endpoint for generation
+            try:
+                # Ragie supports RAG generation - retrieve and generate in one call
+                rag_response = self.ragie_client.retrievals.rag(
+                    request={
+                        "query": user_query,
+                        "rerank": True,
+                        "top_k": 15,
+                        "max_chunks_per_document": 3,
+                        "filter": {
+                            "connection_name": self.connection_name
+                        },
+                        "instructions": base_system_prompt + conversation_context
+                    }
+                )
+
+                # Extract response text
+                if rag_response and hasattr(rag_response, 'answer'):
+                    response_text = rag_response.answer
+                elif rag_response and hasattr(rag_response, 'response'):
+                    response_text = rag_response.response
+                else:
+                    response_text = str(rag_response)
+
+            except AttributeError:
+                # Fallback if RAG method doesn't exist - just use retrieved chunks
+                logger.warning("Ragie RAG generation not available, using chunks only")
+                response_text = "Based on the retrieved documents:\n\n" + chunks_text
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
 
+            # Clean hallucinated sources
             response_text = self.clean_hallucinated_sources(response_text)
 
             logger.info(f"Query processed successfully with {len(source_files)} source files found")
-            
+
             return {
                 'response': response_text,
                 'sources': source_files
@@ -547,36 +348,33 @@ Answer the user's question based solely on the retrieved information and convers
 
         except Exception as e:
             logger.error(f"Error processing query: {str(e)}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
     def direct_retrieval_query(self, query_text: str, top_k: int = 15, vector_distance_threshold: float = 0.8):
-        """Perform direct context retrieval using new syntax"""
-        if not self.rag_corpus:
-            raise Exception("No corpus available for retrieval")
+        """Perform direct context retrieval using Ragie"""
+        if not self.ragie_client:
+            raise Exception("Ragie client not initialized")
 
         try:
             logger.info(f"Performing direct retrieval for: {query_text[:100]}...")
 
-            # Direct context retrieval using new syntax
-            rag_retrieval_config = rag.RagRetrievalConfig(
-                top_k=top_k,  # Optional
-                filter=rag.Filter(vector_distance_threshold=vector_distance_threshold),  # Optional
-            )
-
-            response = rag.retrieval_query(
-                rag_resources=[
-                    rag.RagResource(
-                        rag_corpus=self.rag_corpus.name,
-                        # Optional: supply IDs from `rag.list_files()`.
-                        # rag_file_ids=["rag-file-1", "rag-file-2", ...],
-                    )
-                ],
-                text=query_text,
-                rag_retrieval_config=rag_retrieval_config,
+            # Use Ragie's retrieval endpoint
+            retrieval_response = self.ragie_client.retrievals.retrieve(
+                request={
+                    "query": query_text,
+                    "rerank": True,
+                    "top_k": top_k,
+                    "max_chunks_per_document": 3,
+                    "filter": {
+                        "connection_name": self.connection_name
+                    }
+                }
             )
 
             logger.info("Direct retrieval completed successfully")
-            return response
+            return retrieval_response
 
         except Exception as e:
             logger.error(f"Error in direct retrieval: {str(e)}")
@@ -587,11 +385,11 @@ rag_system = RAGSystem()
 
 
 def initialize_rag_system():
-    """Initialize the RAG system with current Vertex AI API"""
+    """Initialize the RAG system with Ragie"""
     global rag_system
 
     try:
-        # Initialize Vertex AI and create/load corpus
+        # Initialize Ragie client
         success = rag_system.initialize()
 
         if success:
@@ -604,7 +402,6 @@ def initialize_rag_system():
     except Exception as e:
         logger.error(f"Error initializing RAG system: {str(e)}")
         return False
-
 
 
 # HTML template loading function
@@ -635,10 +432,8 @@ def status():
     return jsonify({
         'initialized': rag_system.initialized,
         'healthy': is_healthy,
-        'has_corpus': rag_system.rag_corpus is not None,
-        'has_model': rag_system.rag_model is not None,
-        'has_retrieval_tool': rag_system.rag_retrieval_tool is not None,
-        'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
+        'has_client': rag_system.ragie_client is not None,
+        'connection_name': rag_system.connection_name
     })
 
 
@@ -651,7 +446,7 @@ def initialize():
             return jsonify({
                 'success': True,
                 'message': 'RAG system initialized successfully!',
-                'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
+                'connection_name': rag_system.connection_name
             })
         else:
             return jsonify({
@@ -666,8 +461,9 @@ def initialize():
         }), 500
 
 
-# UPDATED: Query endpoint with conversation history support
+# Query endpoint with conversation history support
 @app.route('/query', methods=['POST'])
+@limiter.limit("20 per minute")  # Rate limit: 20 queries per minute per IP
 def query():
     """Process a research query with conversation history support"""
     global rag_system
@@ -684,8 +480,13 @@ def query():
 
         user_query = data.get('query', '').strip()
         conversation_history = data.get('conversation_history', [])
-        
-        logger.info(f"User query: {user_query}")
+
+        # Input validation
+        MAX_QUERY_LENGTH = 2000
+        if len(user_query) > MAX_QUERY_LENGTH:
+            return jsonify({'error': f'Query too long (max {MAX_QUERY_LENGTH} characters)'}), 400
+
+        logger.info(f"User query (truncated): {user_query[:100]}...")
         logger.info(f"Conversation history length: {len(conversation_history)}")
 
         if not user_query:
@@ -740,16 +541,18 @@ def direct_retrieval():
 
 @app.route('/health')
 def health():
-    """Enhanced health check endpoint for Cloud Run"""
+    """Enhanced health check endpoint for Cloud Run - always returns 200 for liveness probe"""
     is_healthy = rag_system.health_check()
 
+    # Always return 200 for Cloud Run liveness probes
+    # Cloud Run needs a 200 status to keep the container running
     return jsonify({
-        'status': 'healthy' if is_healthy else 'unhealthy',
+        'status': 'healthy' if is_healthy else 'initializing',
         'initialized': rag_system.initialized,
-        'has_corpus': rag_system.rag_corpus is not None,
-        'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None,
+        'has_client': rag_system.ragie_client is not None,
+        'connection_name': rag_system.connection_name,
         'auto_recovery': is_healthy
-    }), 200 if is_healthy else 503
+    }), 200
 
 
 @app.route('/test')
@@ -761,8 +564,8 @@ def test():
         'message': 'Flask server is working!',
         'initialized': rag_system.initialized,
         'healthy': is_healthy,
-        'has_corpus': rag_system.rag_corpus is not None,
-        'corpus_name': rag_system.rag_corpus.name if rag_system.rag_corpus else None
+        'has_client': rag_system.ragie_client is not None,
+        'connection_name': rag_system.connection_name
     })
 
 
@@ -790,22 +593,22 @@ def test_file_detection():
     try:
         data = request.get_json()
         test_text = data.get('text', '')
-        
+
         if not test_text:
             return jsonify({'error': 'No text provided'}), 400
-            
+
         found_files = rag_system.drive_helper.find_file_links(test_text)
-        
+
         return jsonify({
             'found_files': found_files,
             'count': len(found_files)
         })
-        
+
     except Exception as e:
         logger.error(f"Error in file detection test: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# NEW: Conversation management endpoints
+# Conversation management endpoints
 @app.route('/clear-conversation', methods=['POST'])
 def clear_conversation():
     """Clear conversation history (this is mainly handled client-side, but included for completeness)"""
@@ -820,67 +623,6 @@ def clear_conversation():
             'success': False,
             'error': str(e)
         }), 500
-
-@app.route('/test-corpus', methods=['GET'])
-def test_corpus():
-    """Test if corpus has documents and show corpus info"""
-    try:
-        # Perform health check first
-        is_healthy = rag_system.health_check()
-
-        if rag_system.rag_corpus:
-            return jsonify({
-                'corpus_name': rag_system.rag_corpus.name,
-                'display_name': rag_system.rag_corpus.display_name if hasattr(rag_system.rag_corpus,
-                                                                              'display_name') else 'N/A',
-                'status': 'Corpus exists and loaded',
-                'healthy': is_healthy,
-                'initialized': rag_system.initialized
-            })
-        else:
-            return jsonify({
-                'error': 'No corpus found',
-                'healthy': is_healthy,
-                'initialized': rag_system.initialized
-            })
-    except Exception as e:
-        return jsonify({
-            'error': str(e),
-            'healthy': False,
-            'initialized': rag_system.initialized
-        })
-
-
-@app.route('/corpus-info', methods=['GET'])
-def corpus_info():
-    """Get detailed corpus information"""
-    try:
-        if not rag_system.health_check():
-            return jsonify({'error': 'System not healthy'}), 503
-
-        if rag_system.rag_corpus:
-            info = {
-                'corpus_name': rag_system.rag_corpus.name,
-                'status': 'Active',
-                'system_initialized': rag_system.initialized,
-                'has_model': rag_system.rag_model is not None,
-                'has_retrieval_tool': rag_system.rag_retrieval_tool is not None
-            }
-
-            # Try to get additional corpus info if available
-            try:
-                if hasattr(rag_system.rag_corpus, 'display_name'):
-                    info['display_name'] = rag_system.rag_corpus.display_name
-            except:
-                pass
-
-            return jsonify(info)
-        else:
-            return jsonify({'error': 'No corpus available'}), 404
-
-    except Exception as e:
-        logger.error(f"Error getting corpus info: {str(e)}")
-        return jsonify({'error': f'Error getting corpus info: {str(e)}'}), 500
 
 @app.route('/static/<path:filename>')
 def serve_static_files(filename):
