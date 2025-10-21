@@ -149,9 +149,93 @@ gcloud run services logs read ftsc-rag-search --region us-central1 --limit 50
 
 ## Integrating with Your PHP Website
 
-Since your website is PHP and hosted elsewhere, you'll embed this as an external API:
+**RECOMMENDED:** Use the provided PHP integration files (`index.php` + `config.php`) for a secure, rate-limited implementation.
 
-### Option 1: Simple AJAX Call
+### Option 1: PHP Proxy with Rate Limiting (RECOMMENDED)
+
+This repository includes production-ready PHP files that act as a secure proxy to your Cloud Run service.
+
+**Files provided:**
+- `index.php` - Main application with server-side proxy
+- `config.php` - Configuration file
+
+**Features:**
+- Server-side proxy (hides Cloud Run URL from public)
+- IP-based rate limiting (20 queries/minute)
+- CSRF protection
+- Input validation and sanitization
+- All original functionality preserved
+
+**Setup Instructions:**
+
+1. **Copy files to your web server:**
+   ```bash
+   # Upload these files to your website:
+   - index.php
+   - config.php
+   - static/ftsc_logo.png (create this directory and add your logo)
+   ```
+
+2. **Configure Cloud Run URL:**
+
+   Edit `config.php` and replace `YOUR_CLOUD_RUN_URL`:
+   ```php
+   // In config.php, line 17:
+   define('CLOUD_RUN_URL', 'https://your-actual-service.a.run.app');
+   ```
+
+   **How to get your Cloud Run URL:**
+   ```bash
+   # After deploying, run:
+   gcloud run services describe ftsc-rag-search --region us-central1 --format 'value(status.url)'
+   ```
+
+   Example URL: `https://ftsc-rag-search-abc123xyz.a.run.app`
+
+3. **Verify PHP requirements:**
+   - PHP 7.4 or higher
+   - cURL extension enabled
+   - Session support enabled
+
+   Check with:
+   ```bash
+   php -v
+   php -m | grep curl
+   php -m | grep session
+   ```
+
+4. **Set file permissions:**
+   ```bash
+   chmod 644 index.php config.php
+   ```
+
+5. **Test the integration:**
+   - Navigate to: `https://yourwebsite.com/path/to/index.php`
+   - Accept the guidelines
+   - Try a test query
+
+**Security Configuration:**
+
+In `config.php`, you can adjust:
+- `RATE_LIMIT_MAX_QUERIES` - Max queries per IP (default: 20)
+- `RATE_LIMIT_WINDOW` - Time window in seconds (default: 60)
+- `MAX_QUERY_LENGTH` - Max query length (default: 2000)
+- `CSRF_PROTECTION` - Enable/disable CSRF tokens (default: true)
+- `DEBUG_MODE` - Show detailed errors (default: false, set true for testing)
+
+**Production Checklist:**
+- [ ] Set `DEBUG_MODE` to `false` in config.php
+- [ ] Configure your actual Cloud Run URL
+- [ ] Upload FTSC logo to `/static/ftsc_logo.png`
+- [ ] Test rate limiting by making rapid requests
+- [ ] Verify HTTPS is enabled on your website
+- [ ] Check that sessions are working (required for rate limiting)
+
+---
+
+### Option 2: Simple AJAX Call (Direct Integration)
+
+**Warning:** This exposes your Cloud Run URL to end users. Consider using Option 1 instead.
 
 Add to your PHP page:
 
@@ -172,33 +256,6 @@ searchRAG('flight test safety').then(result => {
   console.log(result.sources);
 });
 </script>
-```
-
-### Option 2: Server-Side PHP Call
-
-```php
-<?php
-function queryRAG($query) {
-    $url = 'https://your-service-url.run.app/query';
-    $data = array('query' => $query);
-
-    $options = array(
-        'http' => array(
-            'method'  => 'POST',
-            'content' => json_encode($data),
-            'header'  => 'Content-Type: application/json'
-        )
-    );
-
-    $context = stream_context_create($options);
-    $result = file_get_contents($url, false, $context);
-    return json_decode($result, true);
-}
-
-// Usage
-$result = queryRAG('high altitude flight test');
-echo $result['response'];
-?>
 ```
 
 ### Option 3: Embed in iFrame
