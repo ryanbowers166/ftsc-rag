@@ -7,9 +7,16 @@ import logging
 from typing import List, Optional
 from ragie import Ragie
 import re
+from dotenv import load_dotenv
+import vertexai
+from vertexai.generative_models import GenerativeModel, ChatSession, GenerationConfig
 
 from googleapiclient.discovery import build
 from google.auth import default
+from google.oauth2 import service_account
+
+# Load environment variables
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -29,15 +36,34 @@ limiter = Limiter(
 class GoogleDriveHelper:
     def __init__(self, folder_id=None):
         # Get folder ID from environment variable or use default
-        self.folder_id = folder_id or os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1Qif8tvURTHOOrtrosTQ4YU077yPnuiTB')
+        self.folder_id = folder_id or os.getenv('GOOGLE_DRIVE_FOLDER_ID', '1AvP6PJzcICFhX2XRKTVJcrtc2lgWvUdN')
         self.service = None
         self.file_cache = {}
 
     def authenticate(self):
         """Authenticate with Google Drive API"""
         try:
-            # Use default credentials (works in Cloud Shell/Cloud Run)
-            credentials, project = default()
+            # Try to use credentials from service account file first
+            credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+            credentials = None
+
+            if credentials_path:
+                try:
+                    logger.info(f"Loading Google Drive credentials from: {credentials_path}")
+                    credentials = service_account.Credentials.from_service_account_file(
+                        credentials_path,
+                        scopes=['https://www.googleapis.com/auth/drive.readonly']
+                    )
+                    logger.info("Service account credentials loaded for Drive API")
+                except Exception as e:
+                    logger.warning(f"Failed to load service account credentials: {str(e)}")
+                    logger.info("Falling back to Application Default Credentials")
+
+            # Fall back to Application Default Credentials if no file path or loading failed
+            if not credentials:
+                logger.info("Using Application Default Credentials for Drive API")
+                credentials, project = default()
+
             self.service = build('drive', 'v3', credentials=credentials)
             return True
         except Exception as e:
@@ -128,40 +154,84 @@ class GoogleDriveHelper:
                 unique_files.append(file_info)
                 seen_ids.add(file_info['id'])
 
+        print(f'Unique files: {unique_files}')
         return unique_files
 
 class RAGSystem:
     def __init__(self):
         self.ragie_client = None
+        self.gemini_model = None
         self.initialized = False
         self.drive_helper = GoogleDriveHelper()
-        self.api_key = os.getenv('RAGIE_API_KEY')
+        self.ragie_api_key = os.getenv('RAGIE_API_KEY')
+        self.gcp_project = os.getenv('GOOGLE_CLOUD_PROJECT')
+        self.gcp_region = os.getenv('GOOGLE_CLOUD_REGION', 'us-central1')
+        self.gcp_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        self.credentials = None
         self.connection_name = "FTSC LLM Data"  # Google Drive connection name in Ragie
 
+        self.temperature = 0.5
+        self.llm_model = "gemini-2.5-pro"
+        self.max_response_length = 10000
+
+
     def initialize(self):
-        """Initialize the RAG system with Ragie"""
+        """Initialize the RAG system with Ragie and Vertex AI Gemini"""
         try:
             if self.initialized:
                 logger.info("RAG system already initialized")
                 return True
 
-            if not self.api_key:
+            # Initialize Ragie
+            if not self.ragie_api_key:
                 logger.error("RAGIE_API_KEY environment variable not set")
                 return False
 
             logger.info("Initializing Ragie client...")
-            self.ragie_client = Ragie(auth=self.api_key)
+            self.ragie_client = Ragie(auth=self.ragie_api_key)
+            logger.info("Ragie client initialized successfully!")
 
-            # Test the connection by making a simple API call
-            try:
-                # This will verify the API key works
-                logger.info("Testing Ragie connection...")
-                self.initialized = True
-                logger.info("Ragie client initialized successfully!")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to connect to Ragie: {str(e)}")
+            # Load credentials if path is provided
+            if self.gcp_credentials_path:
+                try:
+                    logger.info(f"Loading credentials from: {self.gcp_credentials_path}")
+                    self.credentials = service_account.Credentials.from_service_account_file(
+                        self.gcp_credentials_path,
+                        scopes=['https://www.googleapis.com/auth/cloud-platform']
+                    )
+                    logger.info("Service account credentials loaded successfully!")
+                except Exception as e:
+                    logger.error(f"Failed to load credentials from {self.gcp_credentials_path}: {str(e)}")
+                    logger.info("Falling back to Application Default Credentials")
+                    self.credentials = None
+            else:
+                logger.info("No GOOGLE_APPLICATION_CREDENTIALS path provided, using Application Default Credentials")
+                self.credentials = None
+
+            # Initialize Vertex AI
+            if not self.gcp_project:
+                logger.error("GOOGLE_CLOUD_PROJECT environment variable not set")
                 return False
+
+            logger.info(f"Initializing Vertex AI with project: {self.gcp_project}, region: {self.gcp_region}")
+            vertexai.init(
+                project=self.gcp_project,
+                location=self.gcp_region,
+                credentials=self.credentials
+            )
+
+            # Initialize Gemini model
+            generation_config = GenerationConfig(temperature=self.temperature)
+            self.gemini_model = GenerativeModel(
+                model_name=self.llm_model,
+                #tools=
+                generation_config=generation_config
+            )
+
+            logger.info(f"{self.llm_model} model initialized successfully!")
+
+            self.initialized = True
+            return True
 
         except Exception as e:
             logger.error(f"Error initializing RAG system: {str(e)}")
@@ -170,7 +240,7 @@ class RAGSystem:
     def health_check(self) -> bool:
         """Check if the RAG system is healthy and re-initialize if needed"""
         try:
-            if not self.initialized or not self.ragie_client:
+            if not self.initialized or not self.ragie_client or not self.gemini_model:
                 logger.warning("RAG system not healthy, attempting re-initialization...")
                 return self.initialize()
 
@@ -181,6 +251,19 @@ class RAGSystem:
             logger.error(f"Health check failed: {str(e)}")
             logger.warning("Attempting to re-initialize RAG system...")
             return self.initialize()
+
+    def retrieve_chunks(self, query: str):
+        """Retrieve chunks from Ragie using simplified structure"""
+        retrieval_res = self.ragie_client.retrievals.retrieve(request={
+            "query": query,
+            "rerank": True,
+            "top_k": 6,
+            "max_chunks_per_document": 0
+        })
+
+        if retrieval_res:
+            return retrieval_res.scored_chunks
+        return []
 
     def format_conversation_history(self, conversation_history: List[dict]) -> str:
         """Format conversation history for inclusion in the prompt"""
@@ -243,20 +326,20 @@ class RAGSystem:
             # Create a research-focused system prompt
             base_system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
 
-CRITICAL RULES:
-1. ONLY use information from the retrieved documents
-2. ALWAYS cite the exact source document name for every piece of information. If you pull multiple pieces of information from the same source, you can just cite the source once.
-3. If no relevant information is found, say "No relevant information found in the available sources"
-4. Never create or invent source names - only use what's provided in the retrieval results
-5. Format sources as: "Source: [exact filename from retrieval]"
-6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
-7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
-8. CONVERSATION CONTINUITY: If this message references previous exchanges or asks for clarification about earlier topics, use the conversation context to maintain coherent discussion flow
-9. If the user asks follow-up questions like "tell me more about that" or "what about safety considerations", refer to the previous context to understand what "that" refers to
-
-Answer the user's question based solely on the retrieved information and conversation context.
-
-"""
+                    CRITICAL RULES:
+                    1. ONLY use information from the retrieved documents
+                    2. ALWAYS cite the exact source document name for every piece of information. If you pull multiple pieces of information from the same source, you can just cite the source once.
+                    3. If no relevant information is found, say "No relevant information found in the available sources"
+                    4. Never create or invent source names - only use what's provided in the retrieval results
+                    5. Format sources as: "Source: [exact filename from retrieval]"
+                    6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
+                    7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
+                    8. CONVERSATION CONTINUITY: If this message references previous exchanges or asks for clarification about earlier topics, use the conversation context to maintain coherent discussion flow
+                    9. If the user asks follow-up questions like "tell me more about that" or "what about safety considerations", refer to the previous context to understand what "that" refers to
+                    
+                    Answer the user's question based solely on the retrieved information and conversation context.
+                    
+                    """
 
             # Add conversation history if provided
             conversation_context = ""
@@ -265,23 +348,13 @@ Answer the user's question based solely on the retrieved information and convers
 
             # Step 1: Retrieve relevant chunks from Ragie
             logger.info("Retrieving relevant document chunks from Ragie...")
-            retrieval_response = self.ragie_client.retrievals.retrieve(
-                request={
-                    "query": user_query,
-                    "rerank": True,
-                    "top_k": 15,
-                    "max_chunks_per_document": 3,
-                    "filter": {
-                        "connection_name": self.connection_name
-                    }
-                }
-            )
+            scored_chunks = self.retrieve_chunks(user_query)
 
             # Extract chunks and format them
             chunks_text = ""
-            if retrieval_response and hasattr(retrieval_response, 'scored_chunks'):
-                logger.info(f"Retrieved {len(retrieval_response.scored_chunks)} chunks")
-                for i, chunk in enumerate(retrieval_response.scored_chunks, 1):
+            if scored_chunks:
+                logger.info(f"Retrieved {len(scored_chunks)} chunks")
+                for i, chunk in enumerate(scored_chunks, 1):
                     chunk_content = chunk.text if hasattr(chunk, 'text') else str(chunk)
                     # Include document name if available
                     doc_name = ""
@@ -296,42 +369,49 @@ Answer the user's question based solely on the retrieved information and convers
                 logger.warning("No chunks retrieved from Ragie")
                 chunks_text = "No relevant documents found."
 
-            # Step 2: Generate response using Ragie's built-in LLM
-            logger.info("Generating response with Ragie's LLM...")
+            # Step 2: Generate response using Gemini 2.0 Flash
+            logger.info(f"Generating response with {self.llm_model}...")
 
-            # Combine system prompt, conversation context, retrieved chunks, and user query
-            full_prompt = base_system_prompt + conversation_context
-            full_prompt += "\n\nRETRIEVED DOCUMENT CHUNKS:\n" + chunks_text
-            full_prompt += f"\n\nUSER QUERY: {user_query}\n\nRESPONSE:"
+            if scored_chunks and len(scored_chunks) > 0:
+                # Build conversation context for Gemini
+                # Gemini uses a chat session approach
+                # Disable response validation to allow responses that might be flagged as recitation
+                chat = self.gemini_model.start_chat(response_validation=False)
 
-            # Use Ragie's chat endpoint for generation
-            try:
-                # Ragie supports RAG generation - retrieve and generate in one call
-                rag_response = self.ragie_client.retrievals.rag(
-                    request={
-                        "query": user_query,
-                        "rerank": True,
-                        "top_k": 15,
-                        "max_chunks_per_document": 3,
-                        "filter": {
-                            "connection_name": self.connection_name
-                        },
-                        "instructions": base_system_prompt + conversation_context
-                    }
-                )
+                # Build the full prompt with system instructions, conversation history, and context
+                full_prompt = base_system_prompt + "\n\n"
 
-                # Extract response text
-                if rag_response and hasattr(rag_response, 'answer'):
-                    response_text = rag_response.answer
-                elif rag_response and hasattr(rag_response, 'response'):
-                    response_text = rag_response.response
-                else:
-                    response_text = str(rag_response)
+                # Add conversation history if provided
+                if conversation_history:
+                    full_prompt += "PREVIOUS CONVERSATION:\n"
+                    for i, exchange in enumerate(conversation_history, 1):
+                        full_prompt += f"\nUser ({i}): {exchange.get('query', '')}\n"
+                        full_prompt += f"Assistant ({i}): {exchange.get('response', '')}\n"
+                    full_prompt += "\n---\n\n"
 
-            except AttributeError:
-                # Fallback if RAG method doesn't exist - just use retrieved chunks
-                logger.warning("Ragie RAG generation not available, using chunks only")
-                response_text = "Based on the retrieved documents:\n\n" + chunks_text
+                # Add retrieved context
+                full_prompt += f"RETRIEVED DOCUMENT CHUNKS:\n{chunks_text}\n\n"
+                full_prompt += f"USER QUERY: {user_query}\n\n"
+                full_prompt += "Please answer the user's query based on the retrieved documents above. Remember to cite your sources."
+
+                # Call Gemini API
+                try:
+                    response = chat.send_message(
+                        full_prompt,
+                        generation_config={
+                            "temperature": self.temperature,
+                            "max_output_tokens": self.max_response_length,
+                        }
+                    )
+
+                    response_text = response.text
+
+                except Exception as e:
+                    logger.error(f"Gemini API error: {str(e)}")
+                    response_text = f"Error generating response: {str(e)}\n\nRetrieved chunks:\n{chunks_text}"
+
+            else:
+                response_text = "No relevant information found in the available sources."
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
@@ -352,7 +432,7 @@ Answer the user's question based solely on the retrieved information and convers
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
 
-    def direct_retrieval_query(self, query_text: str, top_k: int = 15, vector_distance_threshold: float = 0.8):
+    def direct_retrieval_query(self, query_text: str, top_k: int = 6):
         """Perform direct context retrieval using Ragie"""
         if not self.ragie_client:
             raise Exception("Ragie client not initialized")
@@ -360,21 +440,20 @@ Answer the user's question based solely on the retrieved information and convers
         try:
             logger.info(f"Performing direct retrieval for: {query_text[:100]}...")
 
-            # Use Ragie's retrieval endpoint
-            retrieval_response = self.ragie_client.retrievals.retrieve(
+            # Use Ragie's retrieval endpoint with simplified structure
+            retrieval_res = self.ragie_client.retrievals.retrieve(
                 request={
                     "query": query_text,
                     "rerank": True,
                     "top_k": top_k,
-                    "max_chunks_per_document": 3,
-                    "filter": {
-                        "connection_name": self.connection_name
-                    }
+                    "max_chunks_per_document": 0
                 }
             )
 
             logger.info("Direct retrieval completed successfully")
-            return retrieval_response
+            if retrieval_res:
+                return retrieval_res.scored_chunks
+            return []
 
         except Exception as e:
             logger.error(f"Error in direct retrieval: {str(e)}")
@@ -519,20 +598,33 @@ def direct_retrieval():
             return jsonify({'error': 'No data received'}), 400
 
         query_text = data.get('query', '').strip()
-        top_k = data.get('top_k', 10)
-        vector_distance_threshold = data.get('vector_distance_threshold', 0.4)
+        top_k = data.get('top_k', 6)
 
         if not query_text:
             return jsonify({'error': 'Query cannot be empty'}), 400
 
         # Perform direct retrieval
-        retrieval_response = rag_system.direct_retrieval_query(
+        scored_chunks = rag_system.direct_retrieval_query(
             query_text,
-            top_k=top_k,
-            vector_distance_threshold=vector_distance_threshold
+            top_k=top_k
         )
 
-        return jsonify({'retrieval_response': str(retrieval_response)})
+        # Format chunks for response
+        chunks_info = []
+        for chunk in scored_chunks:
+            chunk_data = {
+                'text': chunk.text if hasattr(chunk, 'text') else str(chunk),
+                'score': chunk.score if hasattr(chunk, 'score') else None
+            }
+            if hasattr(chunk, 'document') and chunk.document:
+                if hasattr(chunk.document, 'name'):
+                    chunk_data['document_name'] = chunk.document.name
+            chunks_info.append(chunk_data)
+
+        return jsonify({
+            'chunks': chunks_info,
+            'count': len(scored_chunks)
+        })
 
     except Exception as e:
         logger.error(f"Error in direct retrieval: {str(e)}", exc_info=True)
