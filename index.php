@@ -745,16 +745,20 @@ if (isset($_GET['api'])) {
         .query-section {
             background: white;
             border-top: 2px solid #e2e8f0;
-            padding: 20px;
+            padding: 10px;
             flex-shrink: 0;
+            display: flex;
+            flex-direction: row;
+            gap: 15px;
+            align-items: flex-start;
         }
 
         .query-form {
             display: flex;
             flex-direction: row;
             gap: 10px;
-            margin-bottom: 15px;
             align-items: flex-end;
+            flex: 1;
         }
 
         .query-label {
@@ -814,6 +818,8 @@ if (isset($_GET['api'])) {
             border-radius: 10px;
             padding: 15px;
             border: 1px solid #bae6fd;
+            flex: 0 0 450px;
+            min-width: 300px;
         }
 
         .example-title {
@@ -1004,6 +1010,18 @@ if (isset($_GET['api'])) {
 
             .query-section {
                 padding: 15px;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .example-queries {
+                flex: 1 1 auto;
+                min-width: 100%;
+                padding: 12px;
+            }
+
+            .query-form {
+                flex: 1 1 auto;
             }
 
             .query-input {
@@ -1013,10 +1031,6 @@ if (isset($_GET['api'])) {
             .submit-btn {
                 height: 60px;
                 padding: 12px 24px;
-            }
-
-            .example-queries {
-                padding: 12px;
             }
 
             .example-item {
@@ -1062,7 +1076,6 @@ if (isset($_GET['api'])) {
                     <li>This tool uses AI that may create fake information (hallucinate) or fabricate sources. <strong>Always verify responses carefully.</strong></li>
                     <li>You can ask questions in complete sentences or short phrases.</li>
                     <li>If you get "no relevant information found", try a more detailed query with additional keywords.</li>
-                    <li>You can have multi-message conversations with follow-up questions.</li>
                     <li>Clear the conversation history when switching topics or when conversations get long to maintain performance.</li>
                 </ol>
             </div>
@@ -1094,7 +1107,6 @@ if (isset($_GET['api'])) {
                     <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
                     <li>The LLM may create fake information (hallucinate), or even fabricate entire sources. <strong>Carefully check all responses.</strong></li>
                     <li>If the model returns "no relevant information found in the available sources", try submitting a slightly longer, more detailed prompt with more keywords.</li>
-                    <li>You can have multi-message conversations! Ask follow-up questions and the system will remember the conversation context.</li>
                     <li>LLM performance tends to degrade as a conversation gets longer. <strong> We strongly recommend clearing the conversation history using the "Clear Chat" button when you switch topics, or when the conversation starts to get long.</strong> </li>
                 </ol>
             </div>
@@ -1175,11 +1187,6 @@ if (isset($_GET['api'])) {
             </div>
 
             <div class="query-section">
-                <form id="queryForm" class="query-form">
-                    <textarea id="query" class="query-input" placeholder="Enter your question here, then press enter"></textarea>
-                    <button type="submit" id="submitButton" class="submit-btn">Send</button>
-                </form>
-
                 <div class="example-queries">
                     <div class="example-title">💡 Example Queries:</div>
                     <div class="example-item" onclick="setQuery('What do I need to know about high-altitude flight test?')">
@@ -1195,6 +1202,11 @@ if (isset($_GET['api'])) {
                         (Follow up) What are the safety considerations for this?
                     </div>
                 </div>
+
+                <form id="queryForm" class="query-form">
+                    <textarea id="query" class="query-input" placeholder="Enter your question here, then press enter"></textarea>
+                    <button type="submit" id="submitButton" class="submit-btn">Send</button>
+                </form>
             </div>
         </div>
     </div>
