@@ -1,0 +1,66 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment and secrets
+.env
+.env.local
+*.key
+*.pem
+credentials.json
+service-account.json
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+
+# Documentation
+README.md
+docs/
+*.md
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Old/backup files
+*.bak
+*.old
+app_olddatabasehosting.py
+requirements2.txt
+
+# Claude Code configuration
+.claude/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
