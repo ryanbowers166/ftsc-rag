@@ -1,12 +1,160 @@
 <?php
 /**
- * FTSC RAG Search Tool - Main Application
+ * FTSC RAG Search Tool - Combined Application (Two-Column Layout)
  *
- * This PHP file acts as a proxy between your website and the Google Cloud Run service.
- * It includes rate limiting, security features, and serves the frontend interface.
+ * This single file contains both configuration and application logic.
+ * Configure the settings in the CONFIGURATION SECTION below before deployment.
  */
 
-require_once 'config.php';
+// =============================================================================
+// ⚙️ CONFIGURATION SECTION - CUSTOMIZE THESE SETTINGS
+// =============================================================================
+
+// Load .env file for local development
+function load_env_file($file_path) {
+    if (!file_exists($file_path)) {
+        return;
+    }
+
+    $lines = file($file_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        // Skip comments
+        if (strpos(trim($line), '#') === 0) {
+            continue;
+        }
+
+        // Parse KEY=VALUE
+        if (strpos($line, '=') !== false) {
+            list($key, $value) = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim($value);
+
+            // Set as environment variable if not already set
+            if (!getenv($key)) {
+                putenv("$key=$value");
+            }
+        }
+    }
+}
+
+// Load .env from the same directory as this file
+load_env_file(__DIR__ . '/.env');
+
+// -----------------------------------------------------------------------------
+// CLOUD RUN CONFIGURATION
+// -----------------------------------------------------------------------------
+
+define('CLOUD_RUN_URL', 'http://127.0.0.1:8080');
+
+define('INTERNAL_API_KEY', getenv('INTERNAL_API_KEY') ?: 'no key found');
+
+// -----------------------------------------------------------------------------
+// RATE LIMITING CONFIGURATION
+// -----------------------------------------------------------------------------
+
+/** * Maximum queries per IP address within the time window */
+define('RATE_LIMIT_MAX_QUERIES', 20);
+
+/** * Time window for rate limiting in seconds (60 = 1 minute) */
+define('RATE_LIMIT_WINDOW', 60);
+
+/** * Maximum conversation history length to send to Cloud Run. Helps prevent excessive payload sizes */
+define('MAX_CONVERSATION_HISTORY', 10);
+
+// -----------------------------------------------------------------------------
+// SECURITY CONFIGURATION
+// -----------------------------------------------------------------------------
+
+/** * Session timeout in seconds */
+define('SESSION_TIMEOUT', 3600);
+
+/** * Enable/disable CSRF protection */
+define('CSRF_PROTECTION', true);
+
+/** * Maximum query length (characters) */
+define('MAX_QUERY_LENGTH', 2000);
+
+// -----------------------------------------------------------------------------
+// DEBUGGING (Set to false in production)
+// -----------------------------------------------------------------------------
+
+/** * Enable detailed error messages, WARNING: Set to false in production to avoid exposing sensitive info */
+define('DEBUG_MODE', true);
+
+/** * Log file path (optional). Set to null to disable file logging */
+define('LOG_FILE', null); // Example: '/var/log/ftsc-rag/app.log'
+
+// =============================================================================
+// 🔧 CONFIGURATION VALIDATION
+// =============================================================================
+
+// Validate Cloud Run URL is configured
+if (CLOUD_RUN_URL === 'YOUR_CLOUD_RUN_URL') {
+    if (DEBUG_MODE) {
+        die('ERROR: Please configure CLOUD_RUN_URL in this file (around line 24)');
+    } else {
+        die('Configuration error. Please contact the administrator.');
+    }
+}
+
+// Validate Cloud Run URL format
+if (!filter_var(CLOUD_RUN_URL, FILTER_VALIDATE_URL)) {
+    if (DEBUG_MODE) {
+        die('ERROR: Invalid CLOUD_RUN_URL format in configuration section');
+    } else {
+        die('Configuration error. Please contact the administrator.');
+    }
+}
+
+// =============================================================================
+// 🛠️ HELPER FUNCTIONS
+// =============================================================================
+
+/** * Log a message (if logging is enabled) */
+function log_message($message, $level = 'INFO') {
+    if (LOG_FILE !== null) {
+        $timestamp = date('Y-m-d H:i:s');
+        $log_entry = "[$timestamp] [$level] $message\n";
+        error_log($log_entry, 3, LOG_FILE);
+    }
+
+    if (DEBUG_MODE) {
+        error_log("[$level] $message");
+    }
+}
+
+/** * Get client IP address */
+function get_client_ip() {
+    $ip = $_SERVER['REMOTE_ADDR'];
+
+    // Check for proxy headers (be careful with these in production)
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
+    } elseif (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+        $ip = $_SERVER['HTTP_CLIENT_IP'];
+    }
+
+    return $ip;
+}
+
+/** * Initialize session if not already started */
+function init_session() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+
+        // Regenerate session ID periodically for security
+        if (!isset($_SESSION['created'])) {
+            $_SESSION['created'] = time();
+        } elseif (time() - $_SESSION['created'] > SESSION_TIMEOUT) {
+            session_regenerate_id(true);
+            $_SESSION['created'] = time();
+        }
+    }
+}
+
+// =============================================================================
+// 📱 APPLICATION LOGIC
+// =============================================================================
 
 // Initialize session
 init_session();
@@ -71,17 +219,24 @@ function proxy_to_cloud_run($endpoint, $method = 'GET', $data = null) {
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 
+    // Debug: Log the API key being used
+    log_message("Using API key: " . substr(INTERNAL_API_KEY, 0, 10) . "...", "DEBUG");
+
+    // Prepare headers - always include API key
+    $headers = ['X-API-Key: ' . INTERNAL_API_KEY];
+
     // Set method and data
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
         if ($data !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-            curl_setopt($ch, CURLOPT_HTTPHEADER, [
-                'Content-Type: application/json',
-                'Content-Length: ' . strlen(json_encode($data))
-            ]);
+            $headers[] = 'Content-Type: application/json';
+            $headers[] = 'Content-Length: ' . strlen(json_encode($data));
         }
     }
+
+    // Set headers for all requests
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
     // Execute request
     $response = curl_exec($ch);
@@ -227,49 +382,12 @@ if (isset($_GET['api'])) {
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #374151; /* Dark gray background */
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            background: #374151;
+            height: 100vh;
             overflow: hidden;
         }
 
-        .header {
-            background: #13AFFC; /* Blue header */
-            color: white;
-            padding: 30px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .header-logo {
-            height: 100px;
-            width: auto;
-        }
-
-        .header-content {
-            flex: 1;
-        }
-
-        .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-
-        .header p {
-            font-size: 1.1em;
-            opacity: 0.9;
-        }
-
+        /* Guidelines Modal - Full Screen Overlay */
         .guidelines-overlay {
             position: fixed;
             top: 0;
@@ -350,140 +468,117 @@ if (isset($_GET['api'])) {
             transform: translateY(-2px);
         }
 
-        .main-content {
+        /* Two-Column Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 3fr;
+            height: 100vh;
+            gap: 0;
+        }
+
+        /* Left Column - Info Side */
+        .left-column {
+            background: white;
+            overflow-y: auto;
+            border-right: 2px solid #e2e8f0;
+        }
+
+        /* Right Column - Conversation Side */
+        .right-column {
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header in Left Column */
+        .header {
+            background: #13AFFC;
+            color: white;
             padding: 30px;
         }
 
-        .status-section {
-            margin-bottom: 30px;
-            background: #f8fafc;
-            border-radius: 15px;
-            padding: 25px;
-            border: 1px solid #e2e8f0;
-            display: none; /* Hidden from user */
-        }
-
-        .status-section h3 {
-            font-size: 1.3em;
-            font-weight: 600;
-            color: #1e293b;
+        .header-logo {
+            height: 100px;
+            width: auto;
             margin-bottom: 15px;
         }
 
-        .status-indicator {
-            display: inline-block;
-            padding: 12px 20px;
-            border-radius: 25px;
-            font-size: 14px;
-            font-weight: 500;
-            margin-bottom: 20px;
+        .header-content h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+            font-weight: 700;
         }
 
-        .status-healthy {
-            background: #dcfce7;
-            color: #166534;
+        .header-content p {
+            font-size: 1em;
+            opacity: 0.9;
+            line-height: 1.4;
         }
 
-        .status-error {
-            background: #fef2f2;
-            color: #dc2626;
-        }
-
-        .status-loading {
-            background: #fef3c7;
-            color: #d97706;
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #4f46e5;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 8px;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .button-group {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .init-btn {
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .init-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-        }
-
-        .init-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .status-btn {
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .status-btn:hover {
-            transform: translateY(-2px);
-        }
-
-        .refresh-btn {
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-
-        .refresh-btn:hover:not(:disabled) {
-            transform: translateY(-2px);
-        }
-
-        .refresh-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        /* Unified Conversation Section */
-        .conversation-section {
-            margin-bottom: 30px;
-            max-height: 900px;
-            overflow-y: auto;
-            border: 1px solid #e2e8f0;
+        /* Instruction Block */
+        .instruction-block {
+            background: #f0f9ff;
+            border: 1px solid #bae6fd;
             border-radius: 15px;
-            background: #f8fafc;
+            padding: 25px;
+            margin: 20px;
+            color: #0c4a6e;
+            line-height: 1.6;
+        }
+
+        .instruction-block p {
+            margin-bottom: 12px;
+        }
+
+        .instruction-block ol {
+            margin: 12px 0;
+            padding-left: 24px;
+        }
+
+        .instruction-block li {
+            margin: 8px 0;
+        }
+
+        .instruction-block strong {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        /* Info Block in Left Column */
+        .info-block {
+            background: #f1f5f9;
+            padding: 25px;
+            margin: 20px;
+            border-radius: 15px;
+            font-size: 0.95em;
+            color: #334155;
+            line-height: 1.6;
+        }
+
+        .info-block h2 {
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            color: #1e293b;
+        }
+
+        .info-block p {
+            margin-bottom: 1em;
+        }
+
+        /* Conversation Area in Right Column */
+        .conversation-wrapper {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .conversation-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .conversation-header {
@@ -493,10 +588,7 @@ if (isset($_GET['api'])) {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-radius: 15px 15px 0 0;
-            position: sticky;
-            top: 0;
-            z-index: 10;
+            flex-shrink: 0;
         }
 
         .conversation-title {
@@ -521,6 +613,8 @@ if (isset($_GET['api'])) {
         }
 
         .conversation-messages {
+            flex: 1;
+            overflow-y: auto;
             padding: 20px;
         }
 
@@ -647,22 +741,26 @@ if (isset($_GET['api'])) {
             border-bottom-color: #4f46e5;
         }
 
+        /* Query Section - Fixed at Bottom Right */
         .query-section {
-            margin-bottom: 30px;
+            background: white;
+            border-top: 2px solid #e2e8f0;
+            padding: 20px;
+            flex-shrink: 0;
         }
 
         .query-form {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-            margin-bottom: 20px;
+            flex-direction: row;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: flex-end;
         }
 
         .query-label {
             font-size: 1.1em;
             font-weight: 600;
             color: #1e293b;
-            margin-bottom: 10px;
         }
 
         .query-input {
@@ -672,10 +770,13 @@ if (isset($_GET['api'])) {
             font-size: 16px;
             font-family: inherit;
             resize: vertical;
-            min-height: 120px;
+            min-height: 40px;
+            max-height: 120px;
             width: 100%;
             max-width: 100%;
             transition: border-color 0.3s;
+            overflow-y: auto;
+            flex: 1;
         }
 
         .query-input:focus {
@@ -694,7 +795,8 @@ if (isset($_GET['api'])) {
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.2s;
-            align-self: flex-start;
+            flex-shrink: 0;
+            height: 70px;
         }
 
         .submit-btn:hover:not(:disabled) {
@@ -709,28 +811,27 @@ if (isset($_GET['api'])) {
 
         .example-queries {
             background: #f0f9ff;
-            border-radius: 15px;
-            padding: 20px;
-            margin-top: 20px;
+            border-radius: 10px;
+            padding: 15px;
             border: 1px solid #bae6fd;
         }
 
         .example-title {
-            font-size: 1.1em;
+            font-size: 0.95em;
             font-weight: 600;
             color: #0c4a6e;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
 
         .example-item {
             background: white;
-            padding: 12px 16px;
-            margin: 8px 0;
-            border-radius: 8px;
+            padding: 10px 12px;
+            margin: 6px 0;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
             border: 1px solid #e0f2fe;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .example-item:hover {
@@ -742,8 +843,8 @@ if (isset($_GET['api'])) {
         .sources-section {
             background: #f0f9ff;
             border-radius: 15px;
-            padding: 20px;
-            margin-top: 15px;
+            padding: 10px;
+            margin-top: 5px;
             border: 1px solid #bae6fd;
         }
 
@@ -760,7 +861,7 @@ if (isset($_GET['api'])) {
         .sources-list {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 5px;
         }
 
         .source-item {
@@ -814,30 +915,32 @@ if (isset($_GET['api'])) {
             font-size: 13px;
             font-weight: 500;
             transition: all 0.2s ease;
+            background: white;
+            border: 2px solid #4f46e5;
         }
 
         .download-btn {
-            background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-            color: white;
+            color: #4f46e5;
         }
 
         .download-btn:hover {
-            background: linear-gradient(135deg, #3730a3 0%, #6b21a8 100%);
+            background: white;
             text-decoration: none;
-            color: white;
+            color: #3730a3;
             transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
         }
 
         .view-btn {
-            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
-            color: white;
+            color: #4f46e5;
         }
 
         .view-btn:hover {
-            background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+            background: white;
             text-decoration: none;
-            color: white;
+            color: #3730a3;
             transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(79, 70, 229, 0.2);
         }
 
         .no-download {
@@ -855,129 +958,80 @@ if (isset($_GET['api'])) {
             font-weight: 600;
         }
 
-        .error-message {
-            background: #fef2f2;
-            color: #dc2626;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #fecaca;
-            margin: 10px 0;
-        }
-
-        .success-message {
-            background: #dcfce7;
-            color: #166534;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #bbf7d0;
-            margin: 10px 0;
-        }
-
-        .info-block {
-            background: #f1f5f9;
-            border-top: 2px solid #e2e8f0;
-            padding: 30px;
-            text-align: left;
-            font-size: 1em;
-            color: #334155;
-            max-width: 1200px;
-            margin: 30px auto;
-            border-radius: 20px;
-        }
-
-        .info-block h2 {
-            font-size: 1.5em;
-            margin-bottom: 15px;
-            color: #1e293b;
-        }
-
-        .info-block p {
-            margin-bottom: 1em;
-        }
-
-        .info-block pre {
-            background-color: #f4f4f4;
-            padding: 12px;
-            border-radius: 6px;
-            overflow-x: auto;
-            font-size: 0.9em;
-            white-space: pre-wrap;
-            word-wrap: break-word;
-        }
-
-        .info-block .toggle-btn {
+        .loading-spinner {
             display: inline-block;
-            background: #3b82f6;
-            color: white;
-            padding: 6px 12px;
-            margin-bottom: 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9em;
-            border: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #4f46e5;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
         }
 
-        .info-block .toggle-btn:hover {
-            background: #2563eb;
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
 
-        .instruction-block {
-            background: #f0f9ff;
-            border: 1px solid #bae6fd;
-            border-radius: 15px;
-            padding: 25px;
-            margin: 20px 30px;
-            color: #0c4a6e;
-            line-height: 1.6;
-        }
-
-        .instruction-block p {
-            margin-bottom: 12px;
-        }
-
-        .instruction-block ol {
-            margin: 12px 0;
-            padding-left: 24px;
-        }
-
-        .instruction-block li {
-            margin: 8px 0;
-        }
-
-        .instruction-block strong {
-            font-weight: 600;
-            color: #1e293b;
-        }
-
+        /* Mobile Responsiveness - Keep Side-by-Side */
         @media (max-width: 768px) {
-            .query-form {
-                flex-direction: column;
+            .main-grid {
+                grid-template-columns: 1fr 2fr;
             }
 
             .header {
-                flex-direction: column;
-                text-align: center;
-                gap: 15px;
-            }
-
-            .header-logo {
-                height: 50px;
-            }
-
-            .header h1 {
-                font-size: 2em;
-            }
-
-            .main-content {
                 padding: 20px;
             }
 
-            .button-group {
-                flex-direction: column;
+            .header-logo {
+                height: 60px;
+            }
+
+            .header-content h1 {
+                font-size: 1.5em;
+            }
+
+            .header-content p {
+                font-size: 0.9em;
+            }
+
+            .instruction-block, .info-block {
+                margin: 15px;
+                padding: 20px;
+                font-size: 0.85em;
+            }
+
+            .query-section {
+                padding: 15px;
+            }
+
+            .query-input {
+                min-height: 40px;
             }
 
             .submit-btn {
-                align-self: stretch;
+                height: 60px;
+                padding: 12px 24px;
+            }
+
+            .example-queries {
+                padding: 12px;
+            }
+
+            .example-item {
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+
+            .message {
+                gap: 10px;
+            }
+
+            .message-avatar {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
             }
 
             .source-item {
@@ -994,24 +1048,11 @@ if (isset($_GET['api'])) {
                 flex: 1;
                 justify-content: center;
             }
-
-            .conversation-section {
-                max-height: 400px;
-            }
-
-            .message {
-                gap: 10px;
-            }
-
-            .message-avatar {
-                width: 32px;
-                height: 32px;
-                font-size: 14px;
-            }
         }
     </style>
 </head>
 <body>
+    <!-- Guidelines Modal Overlay - Full Screen -->
     <div id="guidelinesOverlay" class="guidelines-overlay">
         <div class="guidelines-modal">
             <h2>Guidelines for Use</h2>
@@ -1033,59 +1074,110 @@ if (isset($_GET['api'])) {
         </div>
     </div>
 
-    <div class="container">
-        <div class="header">
-            <img src="/static/ftsc_logo.png" alt="FTSC Logo" class="header-logo">
-            <div class="header-content">
-                <h1>FTSC Paper Database Search Tool</h1>
-                <p>Search the FTSC paper database using retrieval-augmented generation (RAG)</p>
-            </div>
-        </div>
-
-        <div class="instruction-block">
-            <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
-            <p>You can use this tool to search the FTSC paper database for sources about a specific topic and have multi-message conversations.</p>
-            <p><strong>Guidelines for using the tool:</strong></p>
-            <ol>
-                <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
-                <li>The LLM may create fake information (hallucinate), or even fabricate entire sources. <strong>Carefully check all responses.</strong></li>
-                <li>If the model returns "no relevant information found in the available sources", try submitting a slightly longer, more detailed prompt with more keywords.</li>
-                <li>You can have multi-message conversations! Ask follow-up questions and the system will remember the conversation context.</li>
-                <li>LLM performance tends to degrade as a conversation gets longer. <strong> We strongly recommend clearing the conversation history using the "Clear Chat" button when you switch topics, or when the conversation starts to get long.</strong> </li>
-            </ol>
-        </div>
-
-        <div class="main-content">
-            <!-- System Status Section - Hidden from user but code preserved -->
-            <div class="status-section">
-                <h3>System Status</h3>
-                <div id="statusDisplay" class="status-indicator status-loading">
-                    <div class="loading-spinner"></div>
-                    Checking system status...
-                </div>
-                <div class="button-group">
-                    <button id="initButton" class="init-btn" onclick="initializeRAG()">Initialize RAG System</button>
-                    <button onclick="checkStatus()" class="status-btn">Check Status</button>
-                    <button id="refreshButton" class="refresh-btn" onclick="refreshFiles()">🔄 Refresh File Cache</button>
+    <!-- Two-Column Layout -->
+    <div class="main-grid">
+        <!-- Left Column: Info Side -->
+        <div class="left-column">
+            <div class="header">
+                <img src="/static/ftsc_logo.png" alt="FTSC Logo" class="header-logo">
+                <div class="header-content">
+                    <h1>FTSC Paper Database Search Tool</h1>
+                    <p>Search the FTSC paper database using retrieval-augmented generation</p>
                 </div>
             </div>
 
-            <!-- Unified Conversation Section -->
-            <div id="conversationSection" class="conversation-section" style="display: none;">
-                <div class="conversation-header">
-                    <div class="conversation-title">💬 Conversation</div>
-                    <button onclick="clearConversation()" class="clear-chat-btn">Clear Chat</button>
-                </div>
-                <div id="conversationMessages" class="conversation-messages">
-                    <!-- Messages will be added here dynamically -->
+            <div class="instruction-block">
+                <p><strong>Welcome to the Flight Test Safety Committee's paper database RAG search tool!</strong> This tool uses <strong>Retrieval Augmented Generation</strong>, a form of large language model automation.</p>
+                <p>You can use this tool to search the FTSC paper database for sources about a specific topic.</p>
+                <p><strong>Guidelines for using the tool:</strong></p>
+                <ol>
+                    <li>You can ask in complete sentences ("What do I need to know about high-altitude flight test?") or short phrases ("high-altitude flight testing")</li>
+                    <li>The LLM may create fake information (hallucinate), or even fabricate entire sources. <strong>Carefully check all responses.</strong></li>
+                    <li>If the model returns "no relevant information found in the available sources", try submitting a slightly longer, more detailed prompt with more keywords.</li>
+                    <li>You can have multi-message conversations! Ask follow-up questions and the system will remember the conversation context.</li>
+                    <li>LLM performance tends to degrade as a conversation gets longer. <strong> We strongly recommend clearing the conversation history using the "Clear Chat" button when you switch topics, or when the conversation starts to get long.</strong> </li>
+                </ol>
+            </div>
+
+            <div class="info-block">
+                <h2>How does this tool work?</h2>
+
+                <p>
+                    This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>,
+                    which uses a large language model (LLM) connected to a database of information.
+                </p>
+
+                <p>
+                    Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or
+                    use case without the need for retraining, which would be expensive and infeasible for small-scale use.
+                </p>
+
+                <p>
+                    When you ask a question, the RAG tool first generates a general answer and then backs it up with information retrieved directly from the database.
+                </p>
+
+                <p><strong>RAG does the following:</strong></p>
+
+                <p>
+                    <strong>1. Database Creation:</strong> The files in the database are broken into
+                    text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning.
+                    From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
+                    raw files (e.g. PDFs) in the original database.
+                </p>
+
+                <p>
+                    <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a numerical vector embedding
+                    in the same way as the database files. The retrieval system then searches through the embeddings of all
+                    corpus documents to find the document chunks that are most similar to the query (using vector euclidean distance or another metric).
+                    These correspond to the most relevant documents.
+                </p>
+
+                <p>
+                    <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined
+                    with your original question and conversation history to create a comprehensive context.
+                </p>
+
+                <p>
+                    <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant
+                    of Gemini) uses the combined context from step 3 to generate a response to your query.
+                </p>
+
+                <p>
+                    Because the context from step 3 only contains the most relevant content from the database,
+                    the LLM's response is tailored to your query and is less likely to be distracted by irrelevant content.
+                </p>
+
+                <p>
+                    <strong>Multi-message conversations:</strong> This tool now maintains conversation history. Each new message
+                    includes the previous conversation context, allowing for follow-up questions and coherent multi-turn discussions.
+                </p>
+
+                <p>
+                    Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt
+                    which your query is appended to. This prompt shapes the model's behavior, tone, and things it is
+                    allowed and not allowed to say in response to your query.
+                </p>
+            </div>
+        </div>
+
+        <!-- Right Column: Conversation Side -->
+        <div class="right-column">
+            <div class="conversation-wrapper">
+                <div id="conversationSection" class="conversation-section" style="display: none;">
+                    <div class="conversation-header">
+                        <div class="conversation-title">💬 Conversation</div>
+                        <button onclick="clearConversation()" class="clear-chat-btn">Clear Chat</button>
+                    </div>
+                    <div id="conversationMessages" class="conversation-messages">
+                        <!-- Messages will be added here dynamically -->
+                    </div>
                 </div>
             </div>
 
             <div class="query-section">
-                <form id="queryForm">
-                    <label for="query" class="query-label">Ask a question:</label>
-                    <textarea id="query" class="query-input" placeholder="Enter your question here..."></textarea>
-                    <button type="submit" id="submitButton" class="submit-btn">Send Message</button>
+                <form id="queryForm" class="query-form">
+                    <textarea id="query" class="query-input" placeholder="Enter your question here, then press enter"></textarea>
+                    <button type="submit" id="submitButton" class="submit-btn">Send</button>
                 </form>
 
                 <div class="example-queries">
@@ -1099,9 +1191,6 @@ if (isset($_GET['api'])) {
                     <div class="example-item" onclick="setQuery('Aircraft certification requirements')">
                         Aircraft certification requirements
                     </div>
-                    <div class="example-item" onclick="setQuery('Can you tell me more about that?')">
-                        (Follow up) Can you tell me more about that?
-                    </div>
                     <div class="example-item" onclick="setQuery('What are the safety considerations for this?')">
                         (Follow up) What are the safety considerations for this?
                     </div>
@@ -1109,66 +1198,6 @@ if (isset($_GET['api'])) {
             </div>
         </div>
     </div>
-
-    <div class="info-block" style="line-height: 1.6;">
-    <h2>How does this tool work?</h2>
-
-    <p>
-        This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>,
-        which uses a large language model (LLM) connected to a database of information.
-    </p>
-
-    <p>
-        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or
-        use case without the need for retraining, which would be expensive and infeasible for small-scale use.
-    </p>
-
-    <p>
-        When you ask a question, the RAG tool first generates a general answer and then backs it up with information retrieved directly from the database.
-    </p>
-
-    <p><strong>RAG does the following:</strong></p>
-
-    <p>
-        <strong>1. Database Creation:</strong> The files in the database are broken into
-        text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning.
-        From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
-        raw files (e.g. PDFs) in the original database.
-    </p>
-
-    <p>
-        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a numerical vector embedding
-        in the same way as the database files. The retrieval system then searches through the embeddings of all
-        corpus documents to find the document chunks that are most similar to the query (using vector euclidean distance or another metric).
-        These correspond to the most relevant documents.
-    </p>
-
-    <p>
-        <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined
-        with your original question and conversation history to create a comprehensive context.
-    </p>
-
-    <p>
-        <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant
-        of Gemini) uses the combined context from step 3 to generate a response to your query.
-    </p>
-
-    <p>
-        Because the context from step 3 only contains the most relevant content from the database,
-        the LLM's response is tailored to your query and is less likely to be distracted by irrelevant content.
-    </p>
-
-    <p>
-        <strong>Multi-message conversations:</strong> This tool now maintains conversation history. Each new message
-        includes the previous conversation context, allowing for follow-up questions and coherent multi-turn discussions.
-    </p>
-
-    <p>
-        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt
-        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is
-        allowed and not allowed to say in response to your query.
-    </p>
-</div>
 
     <script>
         // CSRF Token
@@ -1258,7 +1287,7 @@ if (isset($_GET['api'])) {
                 return;
             }
 
-            conversationSection.style.display = 'block';
+            conversationSection.style.display = 'flex';
             messagesContainer.innerHTML = '';
 
             conversationHistory.forEach((item, index) => {
@@ -1359,84 +1388,16 @@ if (isset($_GET['api'])) {
             apiCall('status', 'GET')
                 .then(response => response.json())
                 .then(data => {
-                    var statusDiv = document.getElementById('statusDisplay');
-                    var initButton = document.getElementById('initButton');
                     var submitButton = document.getElementById('submitButton');
 
                     if (data.initialized) {
-                        statusDiv.innerHTML = '✅ RAG system is initialized and ready!';
-                        statusDiv.className = 'status-indicator status-healthy';
-                        initButton.textContent = 'Re-initialize RAG System';
-                        initButton.disabled = false;
                         submitButton.disabled = false;
                     } else {
-                        statusDiv.innerHTML = '❌ RAG system is not initialized';
-                        statusDiv.className = 'status-indicator status-error';
-                        initButton.textContent = 'Initialize RAG System';
-                        initButton.disabled = false;
                         submitButton.disabled = true;
                     }
                 })
                 .catch(error => {
-                    document.getElementById('statusDisplay').innerHTML = '❌ Error checking status';
-                    document.getElementById('statusDisplay').className = 'status-indicator status-error';
-                });
-        }
-
-        function initializeRAG() {
-            var initButton = document.getElementById('initButton');
-            var statusDiv = document.getElementById('statusDisplay');
-
-            initButton.disabled = true;
-            initButton.innerHTML = '<div class="loading-spinner"></div>Initializing...';
-            statusDiv.innerHTML = '<div class="loading-spinner"></div>Initializing RAG system, please wait...';
-            statusDiv.className = 'status-indicator status-loading';
-
-            apiCall('initialize', 'POST')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        statusDiv.innerHTML = '✅ ' + data.message;
-                        statusDiv.className = 'status-indicator status-healthy';
-                        initButton.textContent = 'Re-initialize RAG System';
-                        document.getElementById('submitButton').disabled = false;
-                    } else {
-                        statusDiv.innerHTML = '❌ Initialization failed: ' + (data.message || 'Unknown error');
-                        statusDiv.className = 'status-indicator status-error';
-                        initButton.textContent = 'Initialize RAG System';
-                    }
-                    initButton.disabled = false;
-                })
-                .catch(error => {
-                    statusDiv.innerHTML = '❌ Network error during initialization';
-                    statusDiv.className = 'status-indicator status-error';
-                    initButton.textContent = 'Initialize RAG System';
-                    initButton.disabled = false;
-                });
-        }
-
-        function refreshFiles() {
-            var refreshButton = document.getElementById('refreshButton');
-            var originalText = refreshButton.textContent;
-
-            refreshButton.textContent = '🔄 Refreshing...';
-            refreshButton.disabled = true;
-
-            apiCall('refresh-files', 'POST')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('✅ File cache refreshed! Found ' + data.file_count + ' files.');
-                    } else {
-                        alert('❌ Error refreshing files: ' + data.error);
-                    }
-                    refreshButton.textContent = originalText;
-                    refreshButton.disabled = false;
-                })
-                .catch(error => {
-                    alert('❌ Network error during file refresh');
-                    refreshButton.textContent = originalText;
-                    refreshButton.disabled = false;
+                    console.error('Error checking status');
                 });
         }
 
@@ -1528,14 +1489,14 @@ if (isset($_GET['api'])) {
 
                     // Reset button
                     submitButton.disabled = false;
-                    submitButton.innerHTML = 'Send Message';
+                    submitButton.innerHTML = 'Send';
                 })
                 .catch(error => {
                     updateMessageInConversation(loadingId, 'Network error occurred', []);
 
                     // Reset button
                     submitButton.disabled = false;
-                    submitButton.innerHTML = 'Send Message';
+                    submitButton.innerHTML = 'Send';
                 });
         };
 
@@ -1545,7 +1506,7 @@ if (isset($_GET['api'])) {
             const messagesContainer = document.getElementById('conversationMessages');
 
             // Show conversation section if hidden
-            conversationSection.style.display = 'block';
+            conversationSection.style.display = 'flex';
 
             const message = document.createElement('div');
             message.className = 'message';

@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from functools import wraps
 import os
 import logging
 from typing import List, Optional
@@ -28,17 +27,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY')
-
-
-
 app = Flask(__name__)
-# Configure CORS with restricted origin - UPDATE THE ORIGIN URL BELOW FOR YOUR DOMAIN
-CORS(app,
-     origins=["http://127.0.0.1:8080"],  # TODO: Replace with your actual domain
-     supports_credentials=True,
-     allow_headers=["Content-Type", "Authorization", "X-API-Key"],
-     methods=["GET", "POST", "OPTIONS"])
+CORS(app)  # Enable CORS for all routes
 
 # Configure rate limiting
 limiter = Limiter(
@@ -47,21 +37,6 @@ limiter = Limiter(
     default_limits=["200 per hour"],
     storage_uri="memory://"
 )
-
-@app.before_request
-def check_api_key():
-    """Check API key on all requests except health check and OPTIONS"""
-    if request.endpoint != 'health' and request.method != 'OPTIONS':
-        provided_key = request.headers.get('X-API-Key')
-
-        # Debug logging
-        logger.info(f"Endpoint: {request.endpoint}, Method: {request.method}")
-        logger.info(f"Expected API key: {INTERNAL_API_KEY[:10] if INTERNAL_API_KEY else 'None'}...")
-        logger.info(f"Provided API key: {provided_key[:10] if provided_key else 'None'}...")
-
-        if not provided_key or provided_key != INTERNAL_API_KEY:
-            logger.warning(f"Unauthorized request to {request.endpoint} from {request.remote_addr}")
-            return jsonify({'success': False, 'error': 'Unauthorized'}), 401
 
 class GoogleDriveHelper:
     def __init__(self, folder_id=None):
@@ -184,6 +159,7 @@ class GoogleDriveHelper:
                 unique_files.append(file_info)
                 seen_ids.add(file_info['id'])
 
+        print(f'Unique files: {unique_files}')
         return unique_files
 
 # Query logging infrastructure
@@ -377,7 +353,7 @@ class RAGSystem:
         retrieval_res = self.ragie_client.retrievals.retrieve(request={
             "query": query,
             "rerank": True,
-            "top_k": 10,
+            "top_k": 6,
             "max_chunks_per_document": 0
         })
 
@@ -443,6 +419,29 @@ class RAGSystem:
         try:
             logger.info(f"Processing query with {len(conversation_history) if conversation_history else 0} previous exchanges: {user_query[:100]}...")
 
+            # Create a research-focused system prompt
+            base_system_prompt = """You are a helpful chat agent helping a flight test professional analyze technical papers and documentation. You will help the user find relevant sources in the database about flight test techniques, procedures, considerations, and lessons learned.
+
+                    CRITICAL RULES:
+                    1. ONLY use information from the retrieved documents
+                    2. ALWAYS cite the exact source document name for every piece of information. If you pull multiple pieces of information from the same source, you can just cite the source once.
+                    3. If no relevant information is found, say "No relevant information found in the available sources"
+                    4. Never create or invent source names - only use what's provided in the retrieval results
+                    5. Format sources as: "Source: [exact filename from retrieval]"
+                    6. For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects
+                    7. For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested
+                    8. CONVERSATION CONTINUITY: If this message references previous exchanges or asks for clarification about earlier topics, use the conversation context to maintain coherent discussion flow
+                    9. If the user asks follow-up questions like "tell me more about that" or "what about safety considerations", refer to the previous context to understand what "that" refers to
+
+                    Answer the user's question based solely on the retrieved information and conversation context.
+
+                    """
+
+            # Add conversation history if provided
+            conversation_context = ""
+            if conversation_history:
+                conversation_context = self.format_conversation_history(conversation_history)
+
             # Step 1: Retrieve relevant chunks from Ragie
             logger.info("Retrieving relevant document chunks from Ragie...")
             scored_chunks = self.retrieve_chunks(user_query)
@@ -468,44 +467,30 @@ class RAGSystem:
                 logger.warning("No chunks retrieved from Ragie")
                 chunks_text = "No relevant documents found."
 
-            # Step 2: Generate response using Gemini
+            # Step 2: Generate response using Gemini 2.0 Flash
             logger.info(f"Generating response with {self.llm_model}...")
 
             if scored_chunks and len(scored_chunks) > 0:
                 # Build conversation context for Gemini
+                # Gemini uses a chat session approach
                 # Disable response validation to allow responses that might be flagged as recitation
                 chat = self.gemini_model.start_chat(response_validation=False)
 
-                # Build the full prompt with the new DOCUMENT/QUESTION/INSTRUCTIONS format
-                full_prompt = "DOCUMENT:\n"
-                full_prompt += chunks_text + "\n\n"
+                # Build the full prompt with system instructions, conversation history, and context
+                full_prompt = base_system_prompt + "\n\n"
 
                 # Add conversation history if provided
                 if conversation_history:
                     full_prompt += "PREVIOUS CONVERSATION:\n"
                     for i, exchange in enumerate(conversation_history, 1):
-                        full_prompt += f"User ({i}): {exchange.get('query', '')}\n"
+                        full_prompt += f"\nUser ({i}): {exchange.get('query', '')}\n"
                         full_prompt += f"Assistant ({i}): {exchange.get('response', '')}\n"
-                    full_prompt += "\n"
+                    full_prompt += "\n---\n\n"
 
-                full_prompt += "QUESTION:\n"
-                full_prompt += user_query + "\n\n"
-
-                full_prompt += """INSTRUCTIONS:
-Answer the users QUESTION using the DOCUMENT text above.
-Keep your answer grounded in the facts of the DOCUMENT.
-If the DOCUMENT doesn't contain the facts to answer the QUESTION return {NONE}
-
-Additional guidelines:
-- You are helping a flight test professional analyze technical papers and documentation about flight test techniques, procedures, considerations, and lessons learned.
-- ALWAYS cite the exact source document name for every piece of information. Format sources as: "Source: [exact filename from retrieval]"
-- If you pull multiple pieces of information from the same source, you can cite the source once.
-- Never create or invent source names - only use what's provided in the DOCUMENT above.
-- For broad topics (e.g., "Autonomous vehicles"), provide a comprehensive overview covering multiple aspects.
-- For specific queries (e.g., "high altitude flight test sources"), focus on the specific topic requested.
-- CONVERSATION CONTINUITY: If the QUESTION references previous exchanges or asks for clarification about earlier topics (shown in PREVIOUS CONVERSATION above), use that context to maintain coherent discussion flow.
-- If the user asks follow-up questions like "tell me more about that" or "what about safety considerations", refer to the previous context to understand what "that" refers to.
-"""
+                # Add retrieved context
+                full_prompt += f"RETRIEVED DOCUMENT CHUNKS:\n{chunks_text}\n\n"
+                full_prompt += f"USER QUERY: {user_query}\n\n"
+                full_prompt += "Please answer the user's query based on the retrieved documents above. Remember to cite your sources."
 
                 # Call Gemini API
                 try:
@@ -524,7 +509,7 @@ Additional guidelines:
                     response_text = f"Error generating response: {str(e)}\n\nRetrieved chunks:\n{chunks_text}"
 
             else:
-                response_text = "{NONE}"
+                response_text = "No relevant information found in the available sources."
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
@@ -601,7 +586,7 @@ def initialize_rag_system():
 def load_template():
     """Load the HTML template"""
     try:
-        with open('_archive/template.html', 'r', encoding='utf-8') as f:
+        with open('template.html', 'r', encoding='utf-8') as f:
             return f.read()
     except FileNotFoundError:
         logger.error("template.html not found")
@@ -920,6 +905,10 @@ def clear_conversation():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/static/<path:filename>')
+def serve_static_files(filename):
+    return send_from_directory('../static', filename)
 
 if __name__ == '__main__':
     # Initialize RAG system on startup

@@ -1,9 +1,220 @@
+<?php
+/**
+ * FTSC RAG Search Tool - Main Application
+ *
+ * This PHP file acts as a proxy between your website and the Google Cloud Run service.
+ * It includes rate limiting, security features, and serves the frontend interface.
+ */
+
+require_once 'config.php';
+
+// Initialize session
+init_session();
+
+// =============================================================================
+// RATE LIMITING
+// =============================================================================
+
+function check_rate_limit() {
+    $ip = get_client_ip();
+    $current_time = time();
+
+    // Initialize rate limit tracking in session
+    if (!isset($_SESSION['rate_limit'])) {
+        $_SESSION['rate_limit'] = [];
+    }
+
+    // Clean up old entries
+    $_SESSION['rate_limit'] = array_filter($_SESSION['rate_limit'], function($timestamp) use ($current_time) {
+        return ($current_time - $timestamp) < RATE_LIMIT_WINDOW;
+    });
+
+    // Check if rate limit exceeded
+    if (count($_SESSION['rate_limit']) >= RATE_LIMIT_MAX_QUERIES) {
+        return false;
+    }
+
+    // Add current request
+    $_SESSION['rate_limit'][] = $current_time;
+    return true;
+}
+
+// =============================================================================
+// CSRF PROTECTION
+// =============================================================================
+
+function get_csrf_token() {
+    if (!isset($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function verify_csrf_token($token) {
+    if (!CSRF_PROTECTION) {
+        return true;
+    }
+    return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+}
+
+// =============================================================================
+// API PROXY FUNCTIONS
+// =============================================================================
+
+function proxy_to_cloud_run($endpoint, $method = 'GET', $data = null) {
+    $url = CLOUD_RUN_URL . $endpoint;
+
+    $ch = curl_init($url);
+
+    // Set curl options
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
+    // Set method and data
+    if ($method === 'POST') {
+        curl_setopt($ch, CURLOPT_POST, true);
+        if ($data !== null) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen(json_encode($data))
+            ]);
+        }
+    }
+
+    // Execute request
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error = curl_error($ch);
+
+    curl_close($ch);
+
+    // Handle errors
+    if ($response === false) {
+        log_message("cURL error: $error", 'ERROR');
+        return [
+            'success' => false,
+            'error' => DEBUG_MODE ? "Connection error: $error" : 'Service temporarily unavailable',
+            'http_code' => 500
+        ];
+    }
+
+    // Parse JSON response
+    $json_response = json_decode($response, true);
+    if ($json_response === null) {
+        log_message("JSON decode error: $response", 'ERROR');
+        return [
+            'success' => false,
+            'error' => 'Invalid response from service',
+            'http_code' => 500
+        ];
+    }
+
+    return [
+        'success' => true,
+        'data' => $json_response,
+        'http_code' => $http_code
+    ];
+}
+
+// =============================================================================
+// API ENDPOINTS
+// =============================================================================
+
+// Handle API requests
+if (isset($_GET['api'])) {
+    header('Content-Type: application/json');
+
+    $endpoint = $_GET['api'];
+
+    // Rate limiting for query endpoint
+    if ($endpoint === 'query' && !check_rate_limit()) {
+        http_response_code(429);
+        echo json_encode([
+            'error' => 'Rate limit exceeded. Please wait a moment before trying again.'
+        ]);
+        exit;
+    }
+
+    // CSRF check for POST requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && CSRF_PROTECTION) {
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (!isset($input['csrf_token']) || !verify_csrf_token($input['csrf_token'])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Invalid security token']);
+            exit;
+        }
+        unset($input['csrf_token']); // Remove token before forwarding
+    } else {
+        $input = json_decode(file_get_contents('php://input'), true);
+    }
+
+    // Route to appropriate endpoint
+    switch ($endpoint) {
+        case 'status':
+            $result = proxy_to_cloud_run('/status', 'GET');
+            break;
+
+        case 'initialize':
+            $result = proxy_to_cloud_run('/initialize', 'POST');
+            break;
+
+        case 'query':
+            // Validate input
+            if (!isset($input['query']) || empty(trim($input['query']))) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Query cannot be empty']);
+                exit;
+            }
+
+            // Validate query length
+            if (strlen($input['query']) > MAX_QUERY_LENGTH) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Query too long (max ' . MAX_QUERY_LENGTH . ' characters)']);
+                exit;
+            }
+
+            // Limit conversation history
+            if (isset($input['conversation_history']) && is_array($input['conversation_history'])) {
+                $input['conversation_history'] = array_slice($input['conversation_history'], -MAX_CONVERSATION_HISTORY);
+            }
+
+            $result = proxy_to_cloud_run('/query', 'POST', $input);
+            break;
+
+        case 'refresh-files':
+            $result = proxy_to_cloud_run('/refresh-files', 'POST');
+            break;
+
+        default:
+            http_response_code(404);
+            echo json_encode(['error' => 'Unknown endpoint']);
+            exit;
+    }
+
+    // Return result
+    if ($result['success']) {
+        http_response_code($result['http_code']);
+        echo json_encode($result['data']);
+    } else {
+        http_response_code($result['http_code']);
+        echo json_encode(['error' => $result['error']]);
+    }
+
+    exit;
+}
+
+// =============================================================================
+// HTML FRONTEND
+// =============================================================================
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FTSC RAG Search Tool - New Database Version</title>
+    <title>FTSC RAG Search Tool</title>
 
     <!-- Add markdown-it library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
@@ -774,11 +985,11 @@
                 align-items: stretch;
                 gap: 12px;
             }
-            
+
             .source-actions {
                 justify-content: center;
             }
-            
+
             .download-btn, .view-btn {
                 flex: 1;
                 justify-content: center;
@@ -826,7 +1037,7 @@
         <div class="header">
             <img src="/static/ftsc_logo.png" alt="FTSC Logo" class="header-logo">
             <div class="header-content">
-                <h1>FTSC Paper Database Search Tool - MAIN BRANCH</h1>
+                <h1>FTSC Paper Database Search Tool</h1>
                 <p>Search the FTSC paper database using retrieval-augmented generation (RAG)</p>
             </div>
         </div>
@@ -901,65 +1112,68 @@
 
     <div class="info-block" style="line-height: 1.6;">
     <h2>How does this tool work?</h2>
-    
+
     <p>
-        This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>, 
+        This tool uses a technique called <strong>Retrieval-Augmented Generation</strong>,
         which uses a large language model (LLM) connected to a database of information.
     </p>
-    
+
     <p>
-        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or 
+        Retrieval-Augmented Generation (RAG) is a technique to fine-tune an LLM to a specific database or
         use case without the need for retraining, which would be expensive and infeasible for small-scale use.
     </p>
 
     <p>
         When you ask a question, the RAG tool first generates a general answer and then backs it up with information retrieved directly from the database.
     </p>
-    
+
     <p><strong>RAG does the following:</strong></p>
-    
+
     <p>
         <strong>1. Database Creation:</strong> The files in the database are broken into
-        text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning. 
+        text "chunks" which are converted into numerical vectors ("embeddings") that encode their semantic meaning.
         From this point on, the RAG tool only uses this vector database of chunk embeddings, and does not have access to the
         raw files (e.g. PDFs) in the original database.
     </p>
-    
+
     <p>
-        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a numerical vector embedding 
-        in the same way as the database files. The retrieval system then searches through the embeddings of all 
-        corpus documents to find the document chunks that are most similar to the query (using vector euclidean distance or another metric). 
+        <strong>2. Document Retrieval:</strong> When you ask a query, it is converted into a numerical vector embedding
+        in the same way as the database files. The retrieval system then searches through the embeddings of all
+        corpus documents to find the document chunks that are most similar to the query (using vector euclidean distance or another metric).
         These correspond to the most relevant documents.
     </p>
-    
+
     <p>
-        <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined 
+        <strong>3. Context Assembly:</strong> The most relevant document chunks are retrieved and combined
         with your original question and conversation history to create a comprehensive context.
     </p>
-    
+
     <p>
-        <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant 
+        <strong>4. Response Generation:</strong> A large language model (in our case, a lightweight variant
         of Gemini) uses the combined context from step 3 to generate a response to your query.
     </p>
-    
+
     <p>
-        Because the context from step 3 only contains the most relevant content from the database, 
+        Because the context from step 3 only contains the most relevant content from the database,
         the LLM's response is tailored to your query and is less likely to be distracted by irrelevant content.
     </p>
-    
+
     <p>
-        <strong>Multi-message conversations:</strong> This tool now maintains conversation history. Each new message 
+        <strong>Multi-message conversations:</strong> This tool now maintains conversation history. Each new message
         includes the previous conversation context, allowing for follow-up questions and coherent multi-turn discussions.
     </p>
-    
+
     <p>
-        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt 
-        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is 
+        Like other LLM-based chat tools (e.g. ChatGPT, Claude, Gemini), this tool uses a system prompt
+        which your query is appended to. This prompt shapes the model's behavior, tone, and things it is
         allowed and not allowed to say in response to your query.
     </p>
 </div>
 
     <script>
+        // CSRF Token
+        const CSRF_TOKEN = '<?php echo get_csrf_token(); ?>';
+
         // Initialize markdown parser
         const md = window.markdownit({
             html: false,        // Disable HTML tags for security
@@ -993,7 +1207,7 @@
                 if (checkbox.checked) {
                     localStorage.setItem('ftsc_guidelines_agreed', 'true');
                     overlay.style.display = 'none';
-                    checkStatus(); // Added
+                    checkStatus();
                 }
             });
         });
@@ -1038,18 +1252,16 @@
         function displayConversationHistory() {
             const conversationSection = document.getElementById('conversationSection');
             const messagesContainer = document.getElementById('conversationMessages');
-            
+
             if (conversationHistory.length === 0) {
                 conversationSection.style.display = 'none';
                 return;
             }
-            
+
             conversationSection.style.display = 'block';
             messagesContainer.innerHTML = '';
-            
+
             conversationHistory.forEach((item, index) => {
-                console.log(`Message ${index} has ${item.sources ? item.sources.length : 0} sources`);
-                
                 // Add user message
                 const userMessage = document.createElement('div');
                 userMessage.className = 'message';
@@ -1058,26 +1270,25 @@
                     <div class="message-content">${escapeHtml(item.query)}</div>
                 `;
                 messagesContainer.appendChild(userMessage);
-                
+
                 // Add assistant message with sources
                 const assistantMessage = document.createElement('div');
                 assistantMessage.className = 'message';
-                
+
                 let assistantContent = `
                     <div class="message-avatar assistant-avatar">A</div>
                     <div class="message-content">${md.render(item.response)}`;
-                
+
                 // Add sources inline if available
                 if (item.sources && item.sources.length > 0) {
-                    console.log('Adding sources to message:', item.sources);
                     assistantContent += displaySources(item.sources);
                 }
-                
+
                 assistantContent += `</div>`;
                 assistantMessage.innerHTML = assistantContent;
                 messagesContainer.appendChild(assistantMessage);
             });
-            
+
             // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
@@ -1099,7 +1310,6 @@
 
         // Add message to conversation history
         function addToConversationHistory(query, response, sources = []) {
-            console.log('Adding to conversation history:', {query: query.substring(0, 50), sources: sources.length});
             conversationHistory.push({
                 query: query,
                 response: response,
@@ -1125,47 +1335,52 @@
             return div.innerHTML;
         }
 
-        function checkStatus() {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', '/status', true);
+        // API call helper
+        function apiCall(endpoint, method = 'GET', data = null) {
+            const url = window.location.pathname + '?api=' + endpoint;
 
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        var statusDiv = document.getElementById('statusDisplay');
-                        var initButton = document.getElementById('initButton');
-                        var submitButton = document.getElementById('submitButton');
-
-                        if (data.initialized) {
-                            statusDiv.innerHTML = '✅ RAG system is initialized and ready!';
-                            statusDiv.className = 'status-indicator status-healthy';
-                            initButton.textContent = 'Re-initialize RAG System';
-                            initButton.disabled = false;
-                            submitButton.disabled = false;
-                        } else {
-                            statusDiv.innerHTML = '❌ RAG system is not initialized';
-                            statusDiv.className = 'status-indicator status-error';
-                            initButton.textContent = 'Initialize RAG System';
-                            initButton.disabled = false;
-                            submitButton.disabled = true;
-                        }
-                    } catch (e) {
-                        document.getElementById('statusDisplay').innerHTML = '❌ Error checking status: ' + e.message;
-                        document.getElementById('statusDisplay').className = 'status-indicator status-error';
-                    }
-                } else {
-                    document.getElementById('statusDisplay').innerHTML = '❌ Error checking status: HTTP ' + xhr.status;
-                    document.getElementById('statusDisplay').className = 'status-indicator status-error';
+            const options = {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json'
                 }
             };
 
-            xhr.onerror = function() {
-                document.getElementById('statusDisplay').innerHTML = '❌ Network error while checking status';
-                document.getElementById('statusDisplay').className = 'status-indicator status-error';
-            };
+            if (method === 'POST' && data !== null) {
+                // Add CSRF token
+                data.csrf_token = CSRF_TOKEN;
+                options.body = JSON.stringify(data);
+            }
 
-            xhr.send();
+            return fetch(url, options);
+        }
+
+        function checkStatus() {
+            apiCall('status', 'GET')
+                .then(response => response.json())
+                .then(data => {
+                    var statusDiv = document.getElementById('statusDisplay');
+                    var initButton = document.getElementById('initButton');
+                    var submitButton = document.getElementById('submitButton');
+
+                    if (data.initialized) {
+                        statusDiv.innerHTML = '✅ RAG system is initialized and ready!';
+                        statusDiv.className = 'status-indicator status-healthy';
+                        initButton.textContent = 'Re-initialize RAG System';
+                        initButton.disabled = false;
+                        submitButton.disabled = false;
+                    } else {
+                        statusDiv.innerHTML = '❌ RAG system is not initialized';
+                        statusDiv.className = 'status-indicator status-error';
+                        initButton.textContent = 'Initialize RAG System';
+                        initButton.disabled = false;
+                        submitButton.disabled = true;
+                    }
+                })
+                .catch(error => {
+                    document.getElementById('statusDisplay').innerHTML = '❌ Error checking status';
+                    document.getElementById('statusDisplay').className = 'status-indicator status-error';
+                });
         }
 
         function initializeRAG() {
@@ -1177,86 +1392,52 @@
             statusDiv.innerHTML = '<div class="loading-spinner"></div>Initializing RAG system, please wait...';
             statusDiv.className = 'status-indicator status-loading';
 
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/initialize', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            statusDiv.innerHTML = '✅ ' + data.message;
-                            statusDiv.className = 'status-indicator status-healthy';
-                            initButton.textContent = 'Re-initialize RAG System';
-                            document.getElementById('submitButton').disabled = false;
-                        } else {
-                            statusDiv.innerHTML = '❌ Initialization failed: ' + (data.message || 'Unknown error');
-                            statusDiv.className = 'status-indicator status-error';
-                            initButton.textContent = 'Initialize RAG System';
-                        }
-                    } catch (e) {
-                        statusDiv.innerHTML = '❌ Error parsing response: ' + e.message;
+            apiCall('initialize', 'POST')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        statusDiv.innerHTML = '✅ ' + data.message;
+                        statusDiv.className = 'status-indicator status-healthy';
+                        initButton.textContent = 'Re-initialize RAG System';
+                        document.getElementById('submitButton').disabled = false;
+                    } else {
+                        statusDiv.innerHTML = '❌ Initialization failed: ' + (data.message || 'Unknown error');
                         statusDiv.className = 'status-indicator status-error';
                         initButton.textContent = 'Initialize RAG System';
                     }
-                } else {
-                    statusDiv.innerHTML = '❌ HTTP Error: ' + xhr.status;
+                    initButton.disabled = false;
+                })
+                .catch(error => {
+                    statusDiv.innerHTML = '❌ Network error during initialization';
                     statusDiv.className = 'status-indicator status-error';
                     initButton.textContent = 'Initialize RAG System';
-                }
-                initButton.disabled = false;
-            };
-
-            xhr.onerror = function() {
-                statusDiv.innerHTML = '❌ Network error during initialization';
-                statusDiv.className = 'status-indicator status-error';
-                initButton.textContent = 'Initialize RAG System';
-                initButton.disabled = false;
-            };
-
-            xhr.send();
+                    initButton.disabled = false;
+                });
         }
 
-        // Function to refresh Google Drive file cache
         function refreshFiles() {
             var refreshButton = document.getElementById('refreshButton');
             var originalText = refreshButton.textContent;
-            
+
             refreshButton.textContent = '🔄 Refreshing...';
             refreshButton.disabled = true;
-            
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/refresh-files', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            alert('✅ File cache refreshed! Found ' + data.file_count + ' files.');
-                        } else {
-                            alert('❌ Error refreshing files: ' + data.error);
-                        }
-                    } catch (e) {
-                        alert('❌ Error parsing response: ' + e.message);
+
+            apiCall('refresh-files', 'POST')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ File cache refreshed! Found ' + data.file_count + ' files.');
+                    } else {
+                        alert('❌ Error refreshing files: ' + data.error);
                     }
-                } else {
-                    alert('❌ HTTP Error: ' + xhr.status);
-                }
-                
-                refreshButton.textContent = originalText;
-                refreshButton.disabled = false;
-            };
-            
-            xhr.onerror = function() {
-                alert('❌ Network error during file refresh');
-                refreshButton.textContent = originalText;
-                refreshButton.disabled = false;
-            };
-            
-            xhr.send();
+                    refreshButton.textContent = originalText;
+                    refreshButton.disabled = false;
+                })
+                .catch(error => {
+                    alert('❌ Network error during file refresh');
+                    refreshButton.textContent = originalText;
+                    refreshButton.disabled = false;
+                });
         }
 
         // Function to display sources
@@ -1264,38 +1445,38 @@
             if (!sources || sources.length === 0) {
                 return '';
             }
-            
+
             var sourcesHtml = '<div class="sources-section">';
             sourcesHtml += '<div class="sources-title">🔗 Sources <span class="sources-count">' + sources.length + '</span></div>';
             sourcesHtml += '<div class="sources-list">';
-            
+
             sources.forEach(function(source) {
                 var downloadLink = source.download_link || source.view_link;
                 var fileName = source.name;
-                
+
                 sourcesHtml += '<div class="source-item">';
                 sourcesHtml += '<div class="source-info">';
                 sourcesHtml += '<span class="source-icon">📄</span>';
                 sourcesHtml += '<span class="source-name">' + fileName + '</span>';
                 sourcesHtml += '</div>';
                 sourcesHtml += '<div class="source-actions">';
-                
+
                 if (downloadLink) {
                     sourcesHtml += '<a href="' + downloadLink + '" class="download-btn" title="Download ' + fileName + '" target="_blank" rel="noopener noreferrer">';
                     sourcesHtml += '<span>⬇️</span> Download</a>';
                 } else {
                     sourcesHtml += '<span class="no-download">Download not available</span>';
                 }
-                
+
                 if (source.view_link) {
                     sourcesHtml += '<a href="' + source.view_link + '" class="view-btn" title="View ' + fileName + '" target="_blank" rel="noopener noreferrer">';
                     sourcesHtml += '<span>👁️</span> View</a>';
                 }
-                
+
                 sourcesHtml += '</div>';
                 sourcesHtml += '</div>';
             });
-            
+
             sourcesHtml += '</div></div>';
             return sourcesHtml;
         }
@@ -1326,67 +1507,51 @@
             // Add loading message for assistant
             var loadingId = addMessageToConversation('assistant', '<div class="loading-spinner"></div> Processing your query...');
 
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', '/query', true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-
-            xhr.onload = function() {
-                if (xhr.status === 200) {
-                    try {
-                        var data = JSON.parse(xhr.responseText);
-
-                        if (data.error) {
-                            updateMessageInConversation(loadingId, 'Error: ' + data.error, []);
-                        } else if (data.response) {
-                            // Update the loading message with the actual response
-                            updateMessageInConversation(loadingId, data.response, data.sources || []);
-                            
-                            // Add to persistent conversation history
-                            addToConversationHistory(query, data.response, data.sources || []);
-                            
-                            // Clear the input
-                            document.getElementById('query').value = '';
-                        }
-                    } catch (parseError) {
-                        updateMessageInConversation(loadingId, 'Parse error: ' + parseError.message, []);
-                    }
-                } else {
-                    updateMessageInConversation(loadingId, 'HTTP Error: ' + xhr.status, []);
-                }
-
-                // Reset button
-                submitButton.disabled = false;
-                submitButton.innerHTML = 'Send Message';
-            };
-
-            xhr.onerror = function() {
-                updateMessageInConversation(loadingId, 'Network error occurred', []);
-
-                // Reset button
-                submitButton.disabled = false;
-                submitButton.innerHTML = 'Send Message';
-            };
-            
-            // Include conversation history in the request
-            xhr.send(JSON.stringify({
+            apiCall('query', 'POST', {
                 query: query,
                 conversation_history: getConversationContext()
-            }));
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        updateMessageInConversation(loadingId, 'Error: ' + data.error, []);
+                    } else if (data.response) {
+                        // Update the loading message with the actual response
+                        updateMessageInConversation(loadingId, data.response, data.sources || []);
+
+                        // Add to persistent conversation history
+                        addToConversationHistory(query, data.response, data.sources || []);
+
+                        // Clear the input
+                        document.getElementById('query').value = '';
+                    }
+
+                    // Reset button
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Send Message';
+                })
+                .catch(error => {
+                    updateMessageInConversation(loadingId, 'Network error occurred', []);
+
+                    // Reset button
+                    submitButton.disabled = false;
+                    submitButton.innerHTML = 'Send Message';
+                });
         };
 
         // Function to add a message to the conversation display
         function addMessageToConversation(type, content) {
             const conversationSection = document.getElementById('conversationSection');
             const messagesContainer = document.getElementById('conversationMessages');
-            
+
             // Show conversation section if hidden
             conversationSection.style.display = 'block';
-            
+
             const message = document.createElement('div');
             message.className = 'message';
             const messageId = 'msg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
             message.id = messageId;
-            
+
             if (type === 'user') {
                 message.innerHTML = `
                     <div class="message-avatar user-avatar">U</div>
@@ -1398,10 +1563,10 @@
                     <div class="message-content">${content}</div>
                 `;
             }
-            
+
             messagesContainer.appendChild(message);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
+
             return messageId;
         }
 
@@ -1411,14 +1576,14 @@
             if (message) {
                 const messageContent = message.querySelector('.message-content');
                 let htmlContent = md.render(content);
-                
+
                 // Add sources if available
                 if (sources && sources.length > 0) {
                     htmlContent += displaySources(sources);
                 }
-                
+
                 messageContent.innerHTML = htmlContent;
-                
+
                 // Scroll to bottom
                 const messagesContainer = document.getElementById('conversationMessages');
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;

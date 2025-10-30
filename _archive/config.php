@@ -15,8 +15,9 @@
  * Example: 'https://ftsc-rag-search-abc123.a.run.app'
  *
  * DO NOT include a trailing slash
+ * define('CLOUD_RUN_URL', 'https://rag-service-55qjbsthda-uc.a.run.app');
  */
-define('CLOUD_RUN_URL', 'https://rag-service-55qjbsthda-uc.a.run.app');
+define('CLOUD_RUN_URL', 'http://127.0.0.1:8080');
 
 // =============================================================================
 // RATE LIMITING CONFIGURATION
