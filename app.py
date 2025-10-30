@@ -492,9 +492,9 @@ class RAGSystem:
                 full_prompt += user_query + "\n\n"
 
                 full_prompt += """INSTRUCTIONS:
-Answer the users QUESTION using the DOCUMENT text above.
+Answer the user's QUESTION using the DOCUMENT text above.
 Keep your answer grounded in the facts of the DOCUMENT.
-If the DOCUMENT doesn't contain the facts to answer the QUESTION return {NONE}
+If the DOCUMENT doesn't contain the facts to answer the QUESTION return "Sorry, I couldn't find any sources in the database relevant to your question."
 
 Additional guidelines:
 - You are helping a flight test professional analyze technical papers and documentation about flight test techniques, procedures, considerations, and lessons learned.
@@ -524,7 +524,7 @@ Additional guidelines:
                     response_text = f"Error generating response: {str(e)}\n\nRetrieved chunks:\n{chunks_text}"
 
             else:
-                response_text = "{NONE}"
+                response_text = "Sorry, I couldn't find any sources in the database relevant to your question."
 
             # Find source files in the response
             source_files = self.drive_helper.find_file_links(response_text)
