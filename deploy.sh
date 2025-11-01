@@ -43,24 +43,33 @@ echo -e "${YELLOW}Region:${NC} $REGION"
 echo -e "${YELLOW}Service:${NC} $SERVICE_NAME"
 echo ""
 
-# Check for RAGIE_API_KEY
-if [ -z "$RAGIE_API_KEY" ]; then
-    echo -e "${YELLOW}Warning: RAGIE_API_KEY not found in environment${NC}"
-    echo "You'll need to set it after deployment with:"
-    echo "  gcloud run services update $SERVICE_NAME --update-env-vars RAGIE_API_KEY=your_key --region $REGION"
+# Load .env file if it exists
+if [ -f .env ]; then
+    echo -e "${YELLOW}Loading environment variables from .env file...${NC}"
+    export $(cat .env | grep -v '^#' | xargs)
+    echo -e "${GREEN}✓ Environment variables loaded${NC}"
     echo ""
-    read -p "Continue without setting API key? (y/n) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        exit 1
-    fi
 fi
 
-# Check for GOOGLE_DRIVE_FOLDER_ID (optional, has default)
-if [ -z "$GOOGLE_DRIVE_FOLDER_ID" ]; then
-    echo -e "${YELLOW}Note: GOOGLE_DRIVE_FOLDER_ID not set, will use default from code${NC}"
+# Check for required environment variables
+MISSING_VARS=()
+if [ -z "$RAGIE_API_KEY" ]; then MISSING_VARS+=("RAGIE_API_KEY"); fi
+if [ -z "$INTERNAL_API_KEY" ]; then MISSING_VARS+=("INTERNAL_API_KEY"); fi
+if [ -z "$GOOGLE_CLOUD_PROJECT" ]; then MISSING_VARS+=("GOOGLE_CLOUD_PROJECT"); fi
+if [ -z "$GOOGLE_DRIVE_FOLDER_ID" ]; then MISSING_VARS+=("GOOGLE_DRIVE_FOLDER_ID"); fi
+
+if [ ${#MISSING_VARS[@]} -gt 0 ]; then
+    echo -e "${RED}Error: Missing required environment variables:${NC}"
+    for var in "${MISSING_VARS[@]}"; do
+        echo "  - $var"
+    done
     echo ""
+    echo "Please create a .env file with these variables or set them in your environment."
+    exit 1
 fi
+
+# Set default region if not specified
+GOOGLE_CLOUD_REGION=${GOOGLE_CLOUD_REGION:-us-central1}
 
 echo -e "${GREEN}Deploying to Cloud Run...${NC}"
 echo ""

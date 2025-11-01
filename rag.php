@@ -44,8 +44,8 @@ load_env_file(__DIR__ . '/.env');
 // CLOUD RUN CONFIGURATION
 // -----------------------------------------------------------------------------
 
-//define('CLOUD_RUN_URL', 'http://127.0.0.1:8080');
-define('CLOUD_RUN_URL', 'http://99.45.36.114:5001');
+define('CLOUD_RUN_URL', 'https://ftsc-rag-search-57747864813.us-central1.run.app');
+//define('CLOUD_RUN_URL', 'http://99.45.36.114:5001');
 
 define('INTERNAL_API_KEY', getenv('INTERNAL_API_KEY') ?: 'no key found');
 

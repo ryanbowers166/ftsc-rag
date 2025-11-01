@@ -29,9 +29,6 @@ USER appuser
 # Expose port
 EXPOSE $PORT
 
-# NOTE: Removed HEALTHCHECK to reduce unnecessary container wake-ups
-# Cloud Run has its own health check mechanisms
-
 # Start the application
 # Using timeout of 60s instead of 0 to allow proper cleanup
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 60 app:app
