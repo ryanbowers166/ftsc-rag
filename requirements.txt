@@ -8,6 +8,7 @@ google-auth-oauthlib
 google-auth-httplib2
 gunicorn
 google-cloud-aiplatform
+google-cloud-logging
 python-dotenv
 
 

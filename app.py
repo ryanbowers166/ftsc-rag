@@ -25,8 +25,57 @@ from google.oauth2 import service_account
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+def setup_logging():
+    """
+    Setup logging to use Cloud Logging when running in GCP,
+    and standard logging when running locally
+    """
+    # Detect if running in GCP (Cloud Run sets K_SERVICE env variable)
+    is_gcp = os.getenv('K_SERVICE') is not None
+
+    # Always set up basic console logging first
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    if is_gcp:
+        try:
+            # Import Cloud Logging client
+            import google.cloud.logging
+            from google.cloud.logging.handlers import CloudLoggingHandler
+
+            # Get project ID explicitly
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+
+            if not project_id:
+                print("GOOGLE_CLOUD_PROJECT not set, using console logging only")
+                return logging.getLogger(__name__)
+
+            print(f"Initializing Cloud Logging for project: {project_id}")
+
+            # Initialize Cloud Logging client with explicit project
+            client = google.cloud.logging.Client(project=project_id)
+
+            # Set up Cloud Logging handler with background thread
+            handler = CloudLoggingHandler(client, name="ftsc-rag-app")
+
+            # Get the root logger and add Cloud Logging handler
+            cloud_logger = logging.getLogger()
+            cloud_logger.addHandler(handler)
+
+            print("Cloud Logging initialized successfully")
+            return logging.getLogger(__name__)
+        except Exception as e:
+            print(f"Failed to initialize Cloud Logging: {str(e)}")
+            print("Continuing with console logging only")
+            return logging.getLogger(__name__)
+    else:
+        # Local development - console logging already configured above
+        print("Running locally - using console logging")
+        return logging.getLogger(__name__)
+
+logger = setup_logging()
 
 INTERNAL_API_KEY = os.getenv('INTERNAL_API_KEY')
 
