@@ -46,7 +46,7 @@ def setup_logging():
             from google.cloud.logging.handlers import CloudLoggingHandler
 
             # Get project ID explicitly
-            project_id = os.getenv('GOOGLE_CLOUD_PROJECT')
+            project_id = os.getenv('GOOGLE_CLOUD_PROJECT').strip()
 
             if not project_id:
                 print("GOOGLE_CLOUD_PROJECT not set, using console logging only")
